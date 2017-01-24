@@ -35,10 +35,10 @@ ROM_t* rom_from_file(char* path) {
 
                 rom->ram_data = NULL;
 
-                rom->flags->mirroring     = buffer[6] & MIRRORING;
-                rom->flags->ram_battery   = buffer[6] & RAM_BATTERY;
-                rom->flags->trainer       = buffer[6] & TRAINER;
-                rom->flags->ignore_mirror = buffer[6] & IGNORE_MIRROR;
+                rom->flags->mirroring     = (buffer[6] & MIRRORING);
+                rom->flags->ram_battery   = (buffer[6] & RAM_BATTERY) >> 1;
+                rom->flags->trainer       = (buffer[6] & TRAINER) >> 2;
+                rom->flags->ignore_mirror = (buffer[6] & IGNORE_MIRROR) >> 3;
                 rom->flags->mapper        = (buffer[6] & MAPPER) >> 4;
 
                 rom_load_pages(rom, buffer, file_size);
