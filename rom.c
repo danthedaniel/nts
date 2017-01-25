@@ -14,18 +14,17 @@ ROM_t* rom_from_file(char* path) {
         fseek(rom_file, 0, SEEK_END);
         file_size = ftell(rom_file);
 
-        // Make sure the file is at least 16B + 16KiB in size,
-        // which is the minimum ROM size
-        if (file_size >= (HEADER_SIZE) + (PRG_PAGE_SIZE)) {
+        // Make sure the file is big enough for a header
+        if (file_size >= (HEADER_SIZE)) {
             rewind(rom_file);
             buffer = (uint8_t*) malloc(file_size * sizeof(char));
             fread(buffer, file_size, 1, rom_file);
 
-            // Check for magic number
-            if ((buffer[0] == 0x4E) && // N
-                (buffer[1] == 0x45) && // E
-                (buffer[2] == 0x53) && // S
-                (buffer[3] == 0x1A)) { // \r
+            // Check for magic bytes
+            if ((buffer[0] == 'N') &&
+                (buffer[1] == 'E') &&
+                (buffer[2] == 'S') &&
+                (buffer[3] == '\r')) {
                 // malloc space for ROM struct
                 rom = (ROM_t*) malloc(sizeof(ROM_t));
                 FLAGS_t* flags = (FLAGS_t*) malloc(sizeof(FLAGS_t));
@@ -43,7 +42,14 @@ ROM_t* rom_from_file(char* path) {
                 rom->flags->ignore_mirror = (buffer[6] & IGNORE_MIRROR) >> 3;
                 rom->flags->mapper        = (buffer[6] & MAPPER) >> 4;
 
-                rom_load_pages(rom, buffer, file_size);
+                if (rom_file_valid(rom, file_size)) {
+                    rom_load_pages(rom, buffer);
+                } else {
+                    fprintf(stderr, "Error: File is too small\n");
+                    free(rom->flags);
+                    free(rom);
+                    rom = NULL;
+                }
             } else {
                 fprintf(stderr, "Error: No magic bytes\n");
             }
@@ -61,15 +67,28 @@ ROM_t* rom_from_file(char* path) {
     return rom;
 }
 
-void rom_load_pages(ROM_t* rom, uint8_t* buffer, uint32_t buffer_len) {
-    uint32_t buffer_loc = HEADER_SIZE; // Skip past headers
+bool rom_file_valid(ROM_t* rom, uint32_t buffer_len) {
+    if (rom->prg_page_count == 0) {
+        return false;
+    }
+
+    uint32_t rom_computed_size = (HEADER_SIZE) +
+        (rom->prg_page_count * (PRG_PAGE_SIZE)) +
+        (rom->chr_page_count * (CHR_PAGE_SIZE)) +
+        (rom->flags->trainer ? (TRAINER_SIZE) : 0);
+
+    return rom_computed_size <= buffer_len;
+}
+
+void rom_load_pages(ROM_t* rom, uint8_t* buffer) {
+    buffer += HEADER_SIZE; // Skip past headers
 
     // Copy trainer data if present
     if (rom->flags->trainer) {
         rom->trainer_data = (uint8_t*) malloc(TRAINER_SIZE);
-        memcpy(rom->trainer_data, &buffer[buffer_loc], TRAINER_SIZE);
+        memcpy(rom->trainer_data, buffer, TRAINER_SIZE);
 
-        buffer_loc += TRAINER_SIZE;
+        buffer += TRAINER_SIZE;
     } else {
         rom->trainer_data = NULL;
     }
@@ -77,14 +96,13 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer, uint32_t buffer_len) {
     // Copy PRG data
     uint32_t prg_data_size = rom->prg_page_count * (PRG_PAGE_SIZE);
     rom->prg_data = (uint8_t*) malloc(prg_data_size);
-    memcpy(rom->prg_data, &buffer[buffer_loc], prg_data_size);
-    buffer_loc += prg_data_size;
+    memcpy(rom->prg_data, buffer, prg_data_size);
+    buffer += prg_data_size;
 
     // Copy CHR data
     uint32_t chr_data_size = rom->prg_page_count * (CHR_PAGE_SIZE);
     rom->chr_data = (uint8_t*) malloc(chr_data_size);
-    memcpy(rom->chr_data, &buffer[buffer_loc], chr_data_size);
-    buffer_loc += chr_data_size;
+    memcpy(rom->chr_data, buffer, chr_data_size);
 }
 
 void rom_print_details(ROM_t* rom) {
