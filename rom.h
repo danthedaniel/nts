@@ -1,5 +1,5 @@
-#ifndef __DISASM_H__
-#define __DISASM_H__
+#ifndef __ROM_H__
+#define __ROM_H__
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -31,6 +31,7 @@ typedef struct {
 
 ROM_t* rom_from_file(char* path);
 void rom_load_pages(ROM_t* rom, uint8_t* buffer, uint32_t buffer_len);
+void rom_print_details(ROM_t* rom);
 void rom_free(ROM_t* rom);
 
 enum Flag6Mask {

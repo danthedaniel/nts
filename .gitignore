@@ -49,3 +49,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Build artifact
+nes
+
+# Roms
+*.zip
+*.nes

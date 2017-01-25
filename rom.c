@@ -1,19 +1,21 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "disasm.h"
+#include "rom.h"
 
 ROM_t* rom_from_file(char* path) {
     ROM_t* rom = NULL;
     uint8_t *buffer;
     uint32_t file_size;
 
-    FILE* rom_file = fopen("myfile.txt", "rb");
+    FILE* rom_file = fopen(path, "rb");
 
     if (rom_file != NULL) {
         fseek(rom_file, 0, SEEK_END);
         file_size = ftell(rom_file);
 
+        // Make sure the file is at least 16B + 16KiB in size,
+        // which is the minimum ROM size
         if (file_size >= (HEADER_SIZE) + (PRG_PAGE_SIZE)) {
             rewind(rom_file);
             buffer = (uint8_t*) malloc(file_size * sizeof(char));
@@ -43,15 +45,15 @@ ROM_t* rom_from_file(char* path) {
 
                 rom_load_pages(rom, buffer, file_size);
             } else {
-                fprintf(stderr, "Error: No magic bytes");
+                fprintf(stderr, "Error: No magic bytes\n");
             }
 
             free(buffer);
         } else {
-            fprintf(stderr, "Error: File too small, %d bytes", file_size);
+            fprintf(stderr, "Error: File too small, %d bytes\n", file_size);
         }
     } else {
-        fprintf(stderr, "Error: Could not open file %s", path);
+        fprintf(stderr, "Error: Could not open file %s\n", path);
     }
 
     fclose(rom_file);
@@ -60,7 +62,7 @@ ROM_t* rom_from_file(char* path) {
 }
 
 void rom_load_pages(ROM_t* rom, uint8_t* buffer, uint32_t buffer_len) {
-    uint32_t buffer_loc = 16; // Skip past headers
+    uint32_t buffer_loc = HEADER_SIZE; // Skip past headers
 
     // Copy trainer data if present
     if (rom->flags->trainer) {
@@ -85,15 +87,24 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer, uint32_t buffer_len) {
     buffer_loc += chr_data_size;
 }
 
-void rom_free(ROM_t* rom) {
-    if (rom != NULL) {
-        free(rom->flags);
-        free(rom->prg_data);
-        free(rom->chr_data);
-        free(rom->ram_data);
-        free(rom->trainer_data);
-        free(rom);
-    } else {
+void rom_print_details(ROM_t* rom) {
+    printf("rom\n");
+    printf("\t->prg_page_count %d\n", rom->prg_page_count);
+    printf("\t->chr_page_count %d\n", rom->chr_page_count);
+    printf("\t->ram_page_count %d\n", rom->ram_page_count);
+    printf("\t->flags\n");
+    printf("\t\t->mapper        %d\n", rom->flags->mapper);
+    printf("\t\t->mirroring     %d\n", rom->flags->mirroring);
+    printf("\t\t->ram_battery   %d\n", rom->flags->ram_battery);
+    printf("\t\t->trainer       %d\n", rom->flags->trainer);
+    printf("\t\t->ignore_mirror %d\n", rom->flags->ignore_mirror);
+}
 
-    }
+void rom_free(ROM_t* rom) {
+    free(rom->flags);
+    free(rom->prg_data);
+    free(rom->chr_data);
+    free(rom->ram_data);
+    free(rom->trainer_data);
+    free(rom);
 }
