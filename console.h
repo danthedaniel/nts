@@ -1,5 +1,12 @@
+#ifndef CONSOLE_H__
+#define CONSOLE_H__
+
 #include <stdint.h>
 #include "rom.h"
+
+#define MASTER_CLOCK 236250000 / 11.0 // NTSC Clock Rate
+#define FRAME_WIDTH 256
+#define FRAME_HEIGHT 240
 
 #define OAM_SIZE 1<<8
 #define CPU_MEMORY_SIZE 2<<11 // 2KiB
@@ -7,6 +14,7 @@
 
 typedef struct CPU_t CPU_t;
 typedef struct PPU_t PPU_t;
+typedef struct APU_t APU_t;
 
 struct CPU_t {
     // REGISTERS
@@ -25,6 +33,7 @@ struct CPU_t {
     uint8_t cartridge_bank;
 
     PPU_t* ppu;
+    APU_t* apu;
 };
 
 struct PPU_t {
@@ -46,3 +55,39 @@ struct PPU_t {
     // OTHER HARDWARE
     CPU_t* cpu;
 };
+
+struct APU_t {
+    // PULSE 1
+    uint8_t reg_P1DLCV;
+    uint8_t reg_P1SWEEP;
+    uint8_t reg_P1TIMERLOW;
+    uint8_t reg_P1LT;
+
+    // PULSE 2
+    uint8_t reg_P2DLCV;
+    uint8_t reg_P2SWEEP;
+    uint8_t reg_P2TIMERLOW;
+    uint8_t reg_P2LT;
+
+    // TRIANGLE
+    uint8_t reg_TRLINEARCOUNT;
+    uint8_t reg_TRTIMER;
+    uint8_t reg_TRLT;
+
+    // NOISE
+    uint8_t reg_NLCV;
+    uint8_t reg_NLP;
+    uint8_t reg_NLENGTH;
+
+    // DMC
+    uint8_t reg_DMCILR;
+    uint8_t reg_DMCCOUNTER;
+    uint8_t reg_DMCADDRESS;
+    uint8_t reg_DMCLENGTH;
+
+    // OTHER
+    uint8_t reg_APUSTATUS;
+    uint8_t reg_FRAMECOUNTER;
+};
+
+#endif

@@ -26,6 +26,7 @@ typedef struct {
     uint8_t  ram_page_count;
     uint8_t* ram_data;
     uint8_t* trainer_data;
+
     FLAGS_t* flags;
 } ROM_t;
 

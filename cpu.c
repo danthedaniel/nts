@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 #include "cpu.h"
+#include "ppu.h"
+#include "apu.h"
 #include "rom.h"
 
-CPU_t* cpu_init() {
+CPU_t* cpu_init(ROM_t* cartridge) {
     CPU_t* cpu = (CPU_t*) malloc(sizeof(CPU_t));
 
     // Zero out system memory
@@ -17,17 +19,71 @@ CPU_t* cpu_init() {
     cpu->reg_Y = 0;
     cpu->reg_P = 0x34;
     cpu->reg_S = 0xFD;
-    cpu->reg_PC = 0; // TODO: Confirm this
+    cpu->reg_PC = 0x8000; // TODO: Confirm this
 
     // Connect hardware
     cpu->ppu = ppu_init();
+    cpu->apu = apu_init();
+    cpu->cartridge = cartridge;
+    cpu->cartridge_bank = 0;
 
     return cpu;
 }
 
 void cpu_free(CPU_t* cpu) {
     free(cpu->ppu);
+    free(cpu->apu);
     free(cpu);
+}
+
+uint8_t cpu_cycle(CPU_t* cpu) {
+    uint8_t opcode = cpu_memory_map_read(cpu, cpu->reg_PC++);
+    uint8_t arg1, arg2;
+    uint16_t absolute_addr;
+
+    switch(opcode) {
+        // ADC
+        case 0x69: // Immedt
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            cpu->reg_A += arg1;
+            return 2;
+        case 0x65: // ZeroPg
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            cpu->reg_A += cpu_memory_map_read(cpu, arg1);
+            return 3;
+        case 0x75: // ZPIdxX
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
+            return 4;
+        case 0x6D: // Absolu
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
+            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr);
+            return 4;
+        case 0x76: // AbIdxX
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
+            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr + cpu->reg_X);
+            return 4; // TODO: 5 if page crossed
+        case 0x79: // AbIdxY
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
+            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr + cpu->reg_Y);
+            return 4; // TODO: 5 if page crossed
+        case 0x61: // IdxInd
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
+            return 6;
+        case 0x71: // IndIdx
+            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
+            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
+            return 5;
+    }
+
+    return 2;
 }
 
 uint8_t cpu_memory_map_read(CPU_t* cpu, uint16_t address) {
