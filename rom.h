@@ -1,5 +1,5 @@
-#ifndef __ROM_H__
-#define __ROM_H__
+#ifndef ROM_H__
+#define ROM_H__
 
 #include <stdint.h>
 #include <stdbool.h>
