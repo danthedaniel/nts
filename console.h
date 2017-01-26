@@ -2,9 +2,11 @@
 #define CONSOLE_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "rom.h"
 
 #define MASTER_CLOCK 236250000 / 11.0 // NTSC Clock Rate
+#define NS_PER_CLOCK (1 / (MASTER_CLOCK)) * 1000000000
 #define FRAME_WIDTH 256
 #define FRAME_HEIGHT 240
 
@@ -34,6 +36,12 @@ struct CPU_t {
 
     PPU_t* ppu;
     APU_t* apu;
+
+    // CLOCK
+    uint64_t cycle; // How many cycles have passed
+
+    // OTHER
+    bool powered_on;
 };
 
 struct PPU_t {

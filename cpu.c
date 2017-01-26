@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,6 +7,7 @@
 #include "ppu.h"
 #include "apu.h"
 #include "rom.h"
+#include "util.h"
 
 CPU_t* cpu_init(ROM_t* cartridge) {
     CPU_t* cpu = (CPU_t*) malloc(sizeof(CPU_t));
@@ -20,6 +22,8 @@ CPU_t* cpu_init(ROM_t* cartridge) {
     cpu->reg_P = 0x34;
     cpu->reg_S = 0xFD;
     cpu->reg_PC = 0x8000; // TODO: Confirm this
+
+    cpu->cycle = 0;
 
     // Connect hardware
     cpu->ppu = ppu_init();
@@ -36,57 +40,190 @@ void cpu_free(CPU_t* cpu) {
     free(cpu);
 }
 
+void cpu_start(CPU_t* cpu) {
+    uint8_t cycle_count;
+    struct timespec delay;
+    delay.tv_sec = 0;
+    cpu->powered_on = true;
+
+    while (cpu->powered_on) {
+        cycle_count = cpu_cycle(cpu);
+        // TODO: Confirm casting shenanigans
+        delay.tv_nsec = (long) cycle_count * (NS_PER_CLOCK) ;
+
+        if (!nanosleep(&delay, NULL)) {
+            printf("Thread recieved interrupt\n");
+            return;
+        }
+    }
+
+    printf("CPU shutting down\n");
+}
+
 uint8_t cpu_cycle(CPU_t* cpu) {
-    uint8_t opcode = cpu_memory_map_read(cpu, cpu->reg_PC++);
-    uint8_t arg1, arg2;
-    uint16_t absolute_addr;
+    uint8_t opcode = cpu_map_read(cpu, cpu->reg_PC++);
 
     switch(opcode) {
         // ADC
-        case 0x69: // Immedt
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            cpu->reg_A += arg1;
-            return 2;
-        case 0x65: // ZeroPg
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            cpu->reg_A += cpu_memory_map_read(cpu, arg1);
-            return 3;
-        case 0x75: // ZPIdxX
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
-            return 4;
-        case 0x6D: // Absolu
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
-            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr);
-            return 4;
-        case 0x76: // AbIdxX
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
-            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr + cpu->reg_X);
-            return 4; // TODO: 5 if page crossed
-        case 0x79: // AbIdxY
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            arg2 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            absolute_addr = (((uint16_t) arg1) << 8) | arg2;
-            cpu->reg_A += cpu_memory_map_read(cpu, absolute_addr + cpu->reg_Y);
-            return 4; // TODO: 5 if page crossed
-        case 0x61: // IdxInd
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
-            return 6;
-        case 0x71: // IndIdx
-            arg1 = cpu_memory_map_read(cpu, cpu->reg_PC++);
-            cpu->reg_A += cpu_memory_map_read(cpu, arg1 + cpu->reg_X);
-            return 5;
+        case 0x69: return 2 + op_adc(cpu, IMMEDIATE);
+        case 0x65: return 3 + op_adc(cpu, ZERO_PAGE);
+        case 0x75: return 4 + op_adc(cpu, ZERO_PAGE_X);
+        case 0x6D: return 4 + op_adc(cpu, ABSOLUTE);
+        case 0x76: return 4 + op_adc(cpu, ABSOLUTE_X);
+        case 0x79: return 4 + op_adc(cpu, ABSOLUTE_Y);
+        case 0x61: return 6 + op_adc(cpu, INDX_IND);
+        case 0x71: return 5 + op_adc(cpu, IND_INDX);
+        // AND
+        case 0x29: return 2 + op_and(cpu, IMMEDIATE);
+        case 0x25: return 3 + op_and(cpu, ZERO_PAGE);
+        case 0x35: return 4 + op_and(cpu, ZERO_PAGE_X);
+        case 0x2D: return 4 + op_and(cpu, ABSOLUTE);
+        case 0x3D: return 4 + op_and(cpu, ABSOLUTE_X);
+        case 0x39: return 4 + op_and(cpu, ABSOLUTE_Y);
+        case 0x21: return 6 + op_and(cpu, INDX_IND);
+        case 0x31: return 5 + op_and(cpu, IND_INDX);
+        // ASL
+        case 0x0A: return 2 + op_asl(cpu, ACCUMULATOR);
+        case 0x06: return 5 + op_asl(cpu, ZERO_PAGE);
+        case 0x16: return 6 + op_asl(cpu, ZERO_PAGE_X);
+        case 0x0E: return 6 + op_asl(cpu, ABSOLUTE);
+        case 0x1E: return 7 + op_asl(cpu, ABSOLUTE_X);
+        // BCC
+        case 0x90: return 2 + op_bcc(cpu, RELATIVE);
+        // BCS
+        case 0xB0: return 2 + op_bcs(cpu, RELATIVE);
+        default:
+            fprintf(stderr, "Error: Invalid opcode: %x", opcode);
     }
 
     return 2;
 }
 
-uint8_t cpu_memory_map_read(CPU_t* cpu, uint16_t address) {
+// Instruction Implementations
+uint8_t op_adc(CPU_t* cpu, uint8_t mode) {
+    if (mode == IMMEDIATE) {
+        cpu->reg_A += cpu_map_read(cpu, cpu->reg_PC++);
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode);
+        cpu->reg_A += cpu_map_read(cpu, address);
+    }
+
+    // TODO: Set carry flag
+    set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    if (get_bit(cpu->reg_A, 7))
+        set_bit(cpu->reg_P, stat_NEGATIVE, true);
+
+    return 0; // TODO: 1 if page crossed
+}
+
+uint8_t op_and(CPU_t* cpu, uint8_t mode) {
+    if (mode == IMMEDIATE) {
+        cpu->reg_A = cpu->reg_A | cpu_map_read(cpu, cpu->reg_PC++);
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode);
+        cpu->reg_A = cpu->reg_A |  cpu_map_read(cpu, address);
+    }
+
+    set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    if (get_bit(cpu->reg_A, 7))
+        set_bit(cpu->reg_P, stat_NEGATIVE, true);
+
+    return 0; // TODO: 1 if page crossed
+}
+
+uint8_t op_asl(CPU_t* cpu, uint8_t mode) {
+    bool old_bit_7;
+
+    if (mode == ACCUMULATOR) {
+        old_bit_7 = get_bit(cpu->reg_A, 7);
+        cpu->reg_A = cpu->reg_A << 1;
+
+        set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+        if (get_bit(cpu->reg_A, 7))
+            set_bit(cpu->reg_P, stat_NEGATIVE, true);
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode);
+        uint8_t value = cpu_map_read(cpu, address) << 1;
+        old_bit_7 = get_bit(value, 7);
+        cpu_map_write(cpu, address, value);
+
+        set_bit(cpu->reg_P, stat_ZERO, value == 0);
+        if (get_bit(value, 7))
+            set_bit(cpu->reg_P, stat_NEGATIVE, true);
+    }
+
+    set_bit(cpu->reg_P, stat_CARRY, old_bit_7);
+
+    return 0; // TODO: 1 if page crossed
+}
+
+uint8_t op_bcc(CPU_t* cpu, uint8_t mode) {
+    if (!get_bit(cpu->reg_P, stat_CARRY)) {
+        uint16_t address = cpu_address_from_mode(cpu, mode);
+        int8_t offset = cpu_map_read(cpu, address);
+        cpu->reg_PC = ((int32_t) cpu->reg_PC) + offset;
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+// Addressing mode implementations
+uint16_t cpu_address_from_mode(CPU_t* cpu, uint8_t mode) {
+    uint8_t arg1, arg2;
+    int8_t arg1_signed;
+
+    // For INDIRECT addressing
+    uint16_t indirect_addr;
+    uint8_t ind_arg1, ind_arg2;
+
+    switch (mode) {
+        case ZERO_PAGE:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            return (uint16_t) arg1;
+        case ZERO_PAGE_X:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            return ((uint16_t) arg1) + cpu->reg_X;
+        case ZERO_PAGE_Y:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            return ((uint16_t) arg1) + cpu->reg_Y;
+        case RELATIVE:
+            arg1_signed = cpu_map_read(cpu, cpu->reg_PC++);
+            return cpu->reg_PC + arg1_signed;
+        case ABSOLUTE:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_map_read(cpu, cpu->reg_PC++);
+            return (((uint16_t) arg1) << 8) | arg2;
+        case ABSOLUTE_X:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_map_read(cpu, cpu->reg_PC++);
+            return ((((uint16_t) arg1) << 8) | arg2) + cpu->reg_X;
+        case ABSOLUTE_Y:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_map_read(cpu, cpu->reg_PC++);
+            return ((((uint16_t) arg1) << 8) | arg2) + cpu->reg_Y;
+        case INDIRECT:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            arg2 = cpu_map_read(cpu, cpu->reg_PC++);
+            indirect_addr = (((uint16_t) arg1) << 8) | arg2;
+            ind_arg1 = cpu_map_read(cpu, indirect_addr);
+            ind_arg2 = cpu_map_read(cpu, indirect_addr + 1);
+            return (((uint16_t) ind_arg2) << 8) | ind_arg1;
+        case INDX_IND:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            ind_arg1 = cpu_map_read(cpu, arg1 + cpu->reg_X);
+            return ind_arg1;
+        case IND_INDX:
+            arg1 = cpu_map_read(cpu, cpu->reg_PC++);
+            ind_arg1 = cpu_map_read(cpu, arg1) + cpu->reg_Y;
+            return ind_arg1;
+        default:
+            return 0;
+    }
+}
+
+uint8_t cpu_map_read(CPU_t* cpu, uint16_t address) {
     // The 2KiB of system memory is mapped from $0000-$07FF, but it's also
     // mirrored to $0800-$1FFF 3 times
     if (address < 0x2000) {
@@ -140,7 +277,7 @@ uint8_t cpu_memory_map_read(CPU_t* cpu, uint16_t address) {
     return 0;
 }
 
-void cpu_memory_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
+void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
     if (address < 0x2000) {
         cpu->memory[address % CPU_MEMORY_SIZE] = value;
         return;
