@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "rom.h"
+#include "util.h"
 
 ROM_t* rom_from_file(char* path) {
     ROM_t* rom = NULL;
@@ -27,8 +28,6 @@ ROM_t* rom_from_file(char* path) {
                 (buffer[3] == '\r')) {
                 // malloc space for ROM struct
                 rom = (ROM_t*) malloc(sizeof(ROM_t));
-                FLAGS_t* flags = (FLAGS_t*) malloc(sizeof(FLAGS_t));
-                rom->flags = flags;
 
                 rom->prg_page_count = buffer[4];
                 rom->chr_page_count = buffer[5];
@@ -36,17 +35,15 @@ ROM_t* rom_from_file(char* path) {
 
                 rom->ram_data = NULL;
 
-                rom->flags->mirroring     = (buffer[6] & MIRRORING);
-                rom->flags->ram_battery   = (buffer[6] & RAM_BATTERY) >> 1;
-                rom->flags->trainer       = (buffer[6] & TRAINER) >> 2;
-                rom->flags->ignore_mirror = (buffer[6] & IGNORE_MIRROR) >> 3;
-                rom->flags->mapper        = (buffer[6] & MAPPER) >> 4;
+                rom->flags6 = buffer[6];
+                rom->flags7 = buffer[7];
+                rom->flags9 = buffer[9];
 
                 if (rom_file_valid(rom, file_size)) {
                     rom_load_pages(rom, buffer);
                 } else {
                     fprintf(stderr, "Error: File is too small\n");
-                    free(rom->flags);
+
                     free(rom);
                     rom = NULL;
                 }
@@ -75,7 +72,7 @@ bool rom_file_valid(ROM_t* rom, uint32_t buffer_len) {
     uint32_t rom_computed_size = (HEADER_SIZE) +
         (rom->prg_page_count * (PRG_PAGE_SIZE)) +
         (rom->chr_page_count * (CHR_PAGE_SIZE)) +
-        (rom->flags->trainer ? (TRAINER_SIZE) : 0);
+        (get_bit(rom->flags6, TRAINER) ? (TRAINER_SIZE) : 0);
 
     return rom_computed_size <= buffer_len;
 }
@@ -84,7 +81,7 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer) {
     buffer += HEADER_SIZE; // Skip past headers
 
     // Copy trainer data if present
-    if (rom->flags->trainer) {
+    if (get_bit(rom->flags6, TRAINER)) {
         rom->trainer_data = (uint8_t*) malloc(TRAINER_SIZE);
         memcpy(rom->trainer_data, buffer, TRAINER_SIZE);
 
@@ -105,21 +102,23 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer) {
     memcpy(rom->chr_data, buffer, chr_data_size);
 }
 
+uint8_t rom_mapper(ROM_t* rom) {
+    return ((rom->flags7 & MAPPER_UPPER) << 4) |
+            (rom->flags6 & MAPPER_LOWER);
+}
+
+bool rom_nes2(ROM_t* rom) {
+    return (rom->flags7 & NES2_FORMAT) == 0b00001000;
+}
+
 void rom_print_details(ROM_t* rom) {
     printf("rom\n");
     printf("\t->prg_page_count %d\n", rom->prg_page_count);
     printf("\t->chr_page_count %d\n", rom->chr_page_count);
     printf("\t->ram_page_count %d\n", rom->ram_page_count);
-    printf("\t->flags\n");
-    printf("\t\t->mapper        %d\n", rom->flags->mapper);
-    printf("\t\t->mirroring     %d\n", rom->flags->mirroring);
-    printf("\t\t->ram_battery   %d\n", rom->flags->ram_battery);
-    printf("\t\t->trainer       %d\n", rom->flags->trainer);
-    printf("\t\t->ignore_mirror %d\n", rom->flags->ignore_mirror);
 }
 
 void rom_free(ROM_t* rom) {
-    free(rom->flags);
     free(rom->prg_data);
     free(rom->chr_data);
     free(rom->ram_data);

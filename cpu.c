@@ -92,15 +92,29 @@ uint8_t cpu_cycle(CPU_t* cpu) {
         case 0x90: return 2 + op_bcc(cpu, RELATIVE);
         // BCS
         case 0xB0: return 2 + op_bcs(cpu, RELATIVE);
+        // BEQ
+        case 0xF0: return 2 + op_beq(cpu, RELATIVE);
+        // BIT
+        case 0x24: return 2 + op_bit(cpu, ZERO_PAGE);
+        case 0x2C: return 3 + op_bit(cpu, ABSOLUTE);
+        // BMI
+        case 0x30: return 2 + op_bmi(cpu, RELATIVE);
+        // BNE
+        case 0xD0: return 2 + op_bne(cpu, RELATIVE);
+        // BPL
+        case 0x10: return 2 + op_bpl(cpu, RELATIVE);
+        // BRK
+        case 0x00: return 7 + op_brk(cpu, IMPLICIT);
         default:
             fprintf(stderr, "Error: Invalid opcode: %x", opcode);
+            return 0;
     }
 
     return 2;
 }
 
 // Instruction Implementations
-uint8_t op_adc(CPU_t* cpu, uint8_t mode) {
+uint8_t op_adc(CPU_t* cpu, AddrMode mode) {
     if (mode == IMMEDIATE) {
         cpu->reg_A += cpu_map_read(cpu, cpu->reg_PC++);
     } else {
@@ -109,14 +123,14 @@ uint8_t op_adc(CPU_t* cpu, uint8_t mode) {
     }
 
     // TODO: Set carry flag
-    set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
     if (get_bit(cpu->reg_A, 7))
-        set_bit(cpu->reg_P, stat_NEGATIVE, true);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, true);
 
     return 0; // TODO: 1 if page crossed
 }
 
-uint8_t op_and(CPU_t* cpu, uint8_t mode) {
+uint8_t op_and(CPU_t* cpu, AddrMode mode) {
     if (mode == IMMEDIATE) {
         cpu->reg_A = cpu->reg_A | cpu_map_read(cpu, cpu->reg_PC++);
     } else {
@@ -124,44 +138,42 @@ uint8_t op_and(CPU_t* cpu, uint8_t mode) {
         cpu->reg_A = cpu->reg_A |  cpu_map_read(cpu, address);
     }
 
-    set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
     if (get_bit(cpu->reg_A, 7))
-        set_bit(cpu->reg_P, stat_NEGATIVE, true);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, true);
 
     return 0; // TODO: 1 if page crossed
 }
 
-uint8_t op_asl(CPU_t* cpu, uint8_t mode) {
+uint8_t op_asl(CPU_t* cpu, AddrMode mode) {
     bool old_bit_7;
 
     if (mode == ACCUMULATOR) {
         old_bit_7 = get_bit(cpu->reg_A, 7);
         cpu->reg_A = cpu->reg_A << 1;
 
-        set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
         if (get_bit(cpu->reg_A, 7))
-            set_bit(cpu->reg_P, stat_NEGATIVE, true);
+            cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, true);
     } else {
         uint16_t address = cpu_address_from_mode(cpu, mode);
         uint8_t value = cpu_map_read(cpu, address) << 1;
         old_bit_7 = get_bit(value, 7);
         cpu_map_write(cpu, address, value);
 
-        set_bit(cpu->reg_P, stat_ZERO, value == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
         if (get_bit(value, 7))
-            set_bit(cpu->reg_P, stat_NEGATIVE, true);
+            cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, true);
     }
 
-    set_bit(cpu->reg_P, stat_CARRY, old_bit_7);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_7);
 
     return 0; // TODO: 1 if page crossed
 }
 
-uint8_t op_bcc(CPU_t* cpu, uint8_t mode) {
+uint8_t op_bcc(CPU_t* cpu, AddrMode mode) {
     if (!get_bit(cpu->reg_P, stat_CARRY)) {
-        uint16_t address = cpu_address_from_mode(cpu, mode);
-        int8_t offset = cpu_map_read(cpu, address);
-        cpu->reg_PC = ((int32_t) cpu->reg_PC) + offset;
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
 
         return 1; // TODO: 2 if new page
     }
@@ -169,8 +181,95 @@ uint8_t op_bcc(CPU_t* cpu, uint8_t mode) {
     return 0;
 }
 
+uint8_t op_bcs(CPU_t* cpu, AddrMode mode) {
+    if (get_bit(cpu->reg_P, stat_CARRY)) {
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+uint8_t op_beq(CPU_t* cpu, AddrMode mode) {
+    if (get_bit(cpu->reg_P, stat_ZERO)) {
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+uint8_t op_bit(CPU_t* cpu, AddrMode mode) {
+    uint8_t value = cpu_address_from_mode(cpu, mode);
+    value = cpu->reg_A & value;
+
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_OVERFLOW, get_bit(value, 6));
+    cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
+
+    return 0;
+}
+
+uint8_t op_bmi(CPU_t* cpu, AddrMode mode) {
+    if (get_bit(cpu->reg_P, stat_NEGATIVE)) {
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+uint8_t op_bne(CPU_t* cpu, AddrMode mode) {
+    if (!get_bit(cpu->reg_P, stat_ZERO)) {
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+uint8_t op_bpl(CPU_t* cpu, AddrMode mode) {
+    if (!get_bit(cpu->reg_P, stat_NEGATIVE)) {
+        cpu->reg_PC = cpu_address_from_mode(cpu, mode);
+
+        return 1; // TODO: 2 if new page
+    }
+
+    return 0;
+}
+
+uint8_t op_brk(CPU_t* cpu, AddrMode mode) {
+    uint8_t upper_PC = ((cpu->reg_PC >> 4) << 4);
+    uint8_t lower_PC = ((cpu->reg_PC << 4) >> 4);
+    uint8_t status = cpu->reg_P | 0b0011000; // Set bits 4 and 5
+    cpu_stack_push(cpu, upper_PC);
+    cpu_stack_push(cpu, lower_PC);
+    cpu_stack_push(cpu, status);
+
+    uint16_t new_PC = ((uint16_t) cpu_map_read(cpu, 0xFFFE)) << 8;
+    cpu->reg_PC = new_PC | cpu_map_read(cpu, 0xFFFF);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_INT, true);
+
+    return 0;
+}
+
+void cpu_stack_push(CPU_t* cpu, uint8_t value) {
+    cpu_map_write(cpu, STACK_OFFSET | cpu->reg_S, value);
+    cpu->reg_S--;
+}
+
+uint8_t cpu_stack_pull(CPU_t* cpu) {
+    uint8_t value = cpu_map_read(cpu, STACK_OFFSET | cpu->reg_S);
+    cpu->reg_S++;
+    return value;
+}
+
 // Addressing mode implementations
-uint16_t cpu_address_from_mode(CPU_t* cpu, uint8_t mode) {
+uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode) {
     uint8_t arg1, arg2;
     int8_t arg1_signed;
 
@@ -190,7 +289,7 @@ uint16_t cpu_address_from_mode(CPU_t* cpu, uint8_t mode) {
             return ((uint16_t) arg1) + cpu->reg_Y;
         case RELATIVE:
             arg1_signed = cpu_map_read(cpu, cpu->reg_PC++);
-            return cpu->reg_PC + arg1_signed;
+            return ((int32_t) cpu->reg_PC) + arg1_signed;
         case ABSOLUTE:
             arg1 = cpu_map_read(cpu, cpu->reg_PC++);
             arg2 = cpu_map_read(cpu, cpu->reg_PC++);
