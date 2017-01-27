@@ -13,6 +13,7 @@
 #define OAM_SIZE 1<<8
 #define CPU_MEMORY_SIZE 2<<11 // 2KiB
 #define PPU_MEMORY_SIZE 2<<11 // 2KiB
+#define PAGE_SIZE 1<<8 // 256B
 
 typedef struct CPU_t CPU_t;
 typedef struct PPU_t PPU_t;

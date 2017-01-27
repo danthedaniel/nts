@@ -48,6 +48,7 @@ void cpu_start(CPU_t* cpu);
 uint8_t cpu_map_read(CPU_t* cpu, uint16_t address);
 void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value);
 uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode);
+bool cpu_page_crossed(uint16_t address_before, uint16_t address_after);
 
 // Stack functions
 void cpu_stack_push(CPU_t* cpu, uint8_t value);
