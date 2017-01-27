@@ -47,7 +47,7 @@ void cpu_start(CPU_t* cpu);
 // Memory functions
 uint8_t cpu_map_read(CPU_t* cpu, uint16_t address);
 void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value);
-uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode);
+uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode, bool* page_cross);
 bool cpu_page_crossed(uint16_t address_before, uint16_t address_after);
 
 // Stack functions
@@ -68,6 +68,17 @@ uint8_t op_bmi(CPU_t* cpu, AddrMode mode);
 uint8_t op_bne(CPU_t* cpu, AddrMode mode);
 uint8_t op_bpl(CPU_t* cpu, AddrMode mode);
 uint8_t op_brk(CPU_t* cpu, AddrMode mode);
-
+uint8_t op_bvc(CPU_t* cpu, AddrMode mode);
+uint8_t op_bvs(CPU_t* cpu, AddrMode mode);
+uint8_t op_clc(CPU_t* cpu, AddrMode mode);
+uint8_t op_cld(CPU_t* cpu, AddrMode mode);
+uint8_t op_cli(CPU_t* cpu, AddrMode mode);
+uint8_t op_clv(CPU_t* cpu, AddrMode mode);
+uint8_t op_cmp(CPU_t* cpu, AddrMode mode);
+uint8_t op_cmx(CPU_t* cpu, AddrMode mode);
+uint8_t op_cmy(CPU_t* cpu, AddrMode mode);
+uint8_t op_dec(CPU_t* cpu, AddrMode mode);
+uint8_t op_dex(CPU_t* cpu, AddrMode mode);
+uint8_t op_dey(CPU_t* cpu, AddrMode mode);
 
 #endif
