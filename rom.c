@@ -25,10 +25,11 @@ ROM_t* rom_from_file(char* path) {
             if ((buffer[0] == 'N') &&
                 (buffer[1] == 'E') &&
                 (buffer[2] == 'S') &&
-                (buffer[3] == '\r')) {
+                (buffer[3] == 0x1A)) {
                 // malloc space for ROM struct
                 rom = (ROM_t*) malloc(sizeof(ROM_t));
 
+                rom->prg_page = 0;
                 rom->prg_page_count = buffer[4];
                 rom->chr_page_count = buffer[5];
                 rom->ram_page_count = buffer[8];
@@ -62,6 +63,14 @@ ROM_t* rom_from_file(char* path) {
     fclose(rom_file);
 
     return rom;
+}
+
+void rom_free(ROM_t* rom) {
+    free(rom->prg_data);
+    free(rom->chr_data);
+    free(rom->ram_data);
+    free(rom->trainer_data);
+    free(rom);
 }
 
 bool rom_file_valid(ROM_t* rom, uint32_t buffer_len) {
@@ -103,8 +112,7 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer) {
 }
 
 uint8_t rom_mapper(ROM_t* rom) {
-    return ((rom->flags7 & MAPPER_UPPER) << 4) |
-            (rom->flags6 & MAPPER_LOWER);
+    return (rom->flags7 & MAPPER_UPPER) | ((rom->flags6 & MAPPER_LOWER) >> 4);
 }
 
 bool rom_nes2(ROM_t* rom) {
@@ -116,12 +124,36 @@ void rom_print_details(ROM_t* rom) {
     printf("\t->prg_page_count %d\n", rom->prg_page_count);
     printf("\t->chr_page_count %d\n", rom->chr_page_count);
     printf("\t->ram_page_count %d\n", rom->ram_page_count);
+    printf("\t->flags6 %02x\n", rom->flags6);
+    printf("\t->flags7 %02x\n", rom->flags7);
+    printf("\t->flags9 %02x\n", rom->flags9);
 }
 
-void rom_free(ROM_t* rom) {
-    free(rom->prg_data);
-    free(rom->chr_data);
-    free(rom->ram_data);
-    free(rom->trainer_data);
-    free(rom);
+uint8_t rom_map_read(ROM_t* rom, uint16_t address) {
+    uint8_t mapper = rom_mapper(rom);
+
+    switch (mapper) {
+        case 0:
+            if (address >= 0x6000 && address < 0x8000) {
+                if (rom->ram_page_count > 0)
+                    return rom->ram_data[address - 0x6000];
+                else
+                    return 0;
+            }
+
+            if (address >= 0x8000 && address < 0xC000)
+                return rom->prg_data[address - 0x8000];
+
+            if (address >= 0xC000) {
+                if (rom->prg_page_count == 1)
+                    return rom->prg_data[address - 0xC000]; // Mirror first page
+                else if (rom->prg_page_count == 2)
+                    return rom->prg_data[address - 0xC000 + (PRG_PAGE_SIZE)];
+                else
+                    return 0;
+            }
+        default:
+            return 0;
+            fprintf(stderr, "Error: Unsupported mapper %d\n", mapper);
+    }
 }

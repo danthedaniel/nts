@@ -10,6 +10,15 @@ PPU_t* ppu_init() {
     memset(ppu->oam, 0, OAM_SIZE);
     memset(ppu->memory, 0, PPU_MEMORY_SIZE);
 
+    // Set initial register state
+    ppu->reg_PPUCTRL   = 0;
+    ppu->reg_PPUMASK   = 0;
+    ppu->reg_PPUSTATUS = 0b10100000;
+    ppu->reg_OAMADDR   = 0;
+    ppu->reg_PPUSCROLL = 0;
+    ppu->reg_PPUADDR   = 0;
+    ppu->reg_PPUDATA   = 0;
+
     return ppu;
 }
 

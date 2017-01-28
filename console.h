@@ -33,7 +33,6 @@ struct CPU_t {
 
     // OTHER HARDWARE
     ROM_t* cartridge;
-    uint8_t cartridge_bank;
 
     PPU_t* ppu;
     APU_t* apu;
@@ -52,8 +51,8 @@ struct PPU_t {
     uint8_t reg_PPUSTATUS;
     uint8_t reg_OAMADDR;
     uint8_t reg_OAMDATA;
-    uint8_t reg_PPUSCROLL;
-    uint8_t reg_PPUADDR;
+    uint16_t reg_PPUSCROLL;
+    uint16_t reg_PPUADDR;
     uint8_t reg_PPUDATA;
     uint8_t reg_OAMDMA;
 

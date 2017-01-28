@@ -11,6 +11,7 @@
 #define RAM_PAGE_SIZE 1<<13 // 8KiB
 
 typedef struct {
+    uint8_t  prg_page;
     uint8_t  prg_page_count;
     uint8_t* prg_data;
     uint8_t  chr_page_count;
@@ -27,9 +28,13 @@ typedef struct {
 ROM_t* rom_from_file(char* path);
 bool rom_file_valid(ROM_t* rom, uint32_t buffer_len);
 void rom_load_pages(ROM_t* rom, uint8_t* buffer);
-void rom_print_details(ROM_t* rom);
-uint8_t rom_mapper(ROM_t* rom);
 void rom_free(ROM_t* rom);
+
+uint8_t rom_map_read(ROM_t* rom, uint16_t address);
+
+uint8_t rom_mapper(ROM_t* rom);
+
+void rom_print_details(ROM_t* rom);
 
 enum Flag6Masks {
     MIRRORING      = 0,

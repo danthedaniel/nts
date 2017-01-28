@@ -52,6 +52,7 @@ dkms.conf
 
 # Build artifact
 nes
+disasm
 
 # Roms
 *.zip

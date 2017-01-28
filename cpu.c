@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <time.h>
+// #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -21,7 +21,6 @@ CPU_t* cpu_init(ROM_t* cartridge) {
     cpu->reg_Y = 0;
     cpu->reg_P = 0x34;
     cpu->reg_S = 0xFD;
-    cpu->reg_PC = 0x8000; // TODO: Confirm this
 
     cpu->cycle = 0;
 
@@ -29,7 +28,6 @@ CPU_t* cpu_init(ROM_t* cartridge) {
     cpu->ppu = ppu_init();
     cpu->apu = apu_init();
     cpu->cartridge = cartridge;
-    cpu->cartridge_bank = 0;
 
     return cpu;
 }
@@ -40,20 +38,30 @@ void cpu_free(CPU_t* cpu) {
     free(cpu);
 }
 
+uint16_t cpu_get_vector(CPU_t* cpu, uint16_t vec_start) {
+    uint8_t lower_addr = cpu_map_read(cpu, vec_start);
+    uint8_t upper_addr = cpu_map_read(cpu, vec_start + 1);
+    return (((uint16_t) upper_addr) << 8) | lower_addr;
+}
+
 void cpu_start(CPU_t* cpu) {
     uint8_t cycle_count;
-    struct timespec delay;
-    delay.tv_sec = 0;
+    // struct timespec delay;
+    // delay.tv_sec = 0;
     cpu->powered_on = true;
+    cpu->reg_PC = cpu_get_vector(cpu, RST_VECTOR);
 
     while (cpu->powered_on) {
+        printf("Cycle %08x:\n", (uint32_t) cpu->cycle);
         cycle_count = cpu_cycle(cpu);
         cpu->cycle += cycle_count;
 
         // TODO: Confirm casting shenanigans
-        delay.tv_nsec = (long) cycle_count * (NS_PER_CLOCK) ;
+        // delay.tv_nsec = (long) cycle_count * (NS_PER_CLOCK) ;
+        cpu_print_regs(cpu);
 
-        if (!nanosleep(&delay, NULL)) {
+        printf("Waiting...\n");
+        if (getchar() == 'q' || cycle_count == 0) {
             printf("Thread recieved interrupt\n");
             return;
         }
@@ -63,9 +71,9 @@ void cpu_start(CPU_t* cpu) {
 }
 
 uint8_t cpu_cycle(CPU_t* cpu) {
-    printf("$%04x EXEC", cpu->reg_PC);
+    uint16_t orig_pc = cpu->reg_PC;
     uint8_t opcode = cpu_map_read(cpu, cpu->reg_PC++);
-    printf("%02x\n", opcode);
+    printf("$%04x EXEC %02x\n", orig_pc, opcode);
 
     switch(opcode) {
         // ADC
@@ -169,7 +177,7 @@ uint8_t cpu_cycle(CPU_t* cpu) {
         case 0x4C: return 3 + op_jmp(cpu, ABSOLUTE);
         case 0x6C: return 5 + op_jmp(cpu, INDIRECT);
         // JSR
-        case 0x20: return 6 + op_jmp(cpu, ABSOLUTE);
+        case 0x20: return 6 + op_jsr(cpu, ABSOLUTE);
         // LDA
         case 0xA9: return 2 + op_lda(cpu, IMMEDIATE);
         case 0xA5: return 3 + op_lda(cpu, ZERO_PAGE);
@@ -210,7 +218,7 @@ uint8_t cpu_cycle(CPU_t* cpu) {
         case 0x68: return 4 + op_pla(cpu, IMPLICIT);
         // PHP
         case 0x28: return 4 + op_plp(cpu, IMPLICIT);
-        // ROL // TODO: Continue from here
+        // ROL
         case 0x2A: return 2 + op_rol(cpu, ACCUMULATOR);
         case 0x26: return 5 + op_rol(cpu, ZERO_PAGE);
         case 0x36: return 6 + op_rol(cpu, ZERO_PAGE_X);
@@ -270,7 +278,7 @@ uint8_t cpu_cycle(CPU_t* cpu) {
         // TYA
         case 0x98: return 2 + op_tya(cpu, IMPLICIT);
         default:
-            fprintf(stderr, "Error: Invalid opcode: %x", opcode);
+            fprintf(stderr, "Error: Invalid opcode: %02x\n", opcode);
             cpu->powered_on = false;
             return 0;
     }
@@ -432,8 +440,7 @@ uint8_t op_brk(CPU_t* cpu, AddrMode mode) {
     cpu_stack_push(cpu, lower_PC);
     cpu_stack_push(cpu, status);
 
-    uint16_t new_PC = ((uint16_t) cpu_map_read(cpu, 0xFFFE)) << 8;
-    cpu->reg_PC = new_PC | cpu_map_read(cpu, 0xFFFF);
+    cpu->reg_PC = cpu_get_vector(cpu, BRK_VECTOR);
     cpu->reg_P = set_bit(cpu->reg_P, stat_INT, true);
 
     return 0;
@@ -925,7 +932,7 @@ uint8_t op_tya(CPU_t* cpu, AddrMode mode) {
     return 0;
 }
 
-
+// Stack helpers
 void cpu_stack_push(CPU_t* cpu, uint8_t value) {
     cpu_map_write(cpu, STACK_OFFSET | cpu->reg_S, value);
     cpu->reg_S--;
@@ -967,17 +974,17 @@ uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode, bool* page_cross) {
         case ABSOLUTE:
             arg1 = cpu_map_read(cpu, cpu->reg_PC++);
             arg2 = cpu_map_read(cpu, cpu->reg_PC++);
-            ret = (((uint16_t) arg1) << 8) | arg2;
+            ret = (((uint16_t) arg2) << 8) | arg1;
             break;
         case ABSOLUTE_X:
             arg1 = cpu_map_read(cpu, cpu->reg_PC++);
             arg2 = cpu_map_read(cpu, cpu->reg_PC++);
-            ret = ((((uint16_t) arg1) << 8) | arg2) + cpu->reg_X;
+            ret = ((((uint16_t) arg2) << 8) | arg1) + cpu->reg_X;
             break;
         case ABSOLUTE_Y:
             arg1 = cpu_map_read(cpu, cpu->reg_PC++);
             arg2 = cpu_map_read(cpu, cpu->reg_PC++);
-            ret = ((((uint16_t) arg1) << 8) | arg2) + cpu->reg_Y;
+            ret = ((((uint16_t) arg2) << 8) | arg1) + cpu->reg_Y;
             break;
         case INDIRECT:
             arg1 = cpu_map_read(cpu, cpu->reg_PC++);
@@ -1048,15 +1055,9 @@ uint8_t cpu_map_read(CPU_t* cpu, uint16_t address) {
         return 0;
     }
 
-    // Cartridge SRAM
-    if (address >= 0x6000 && address < 0x7FFF) {
-        return 0;
-    }
-
-    // Cartridge PrgROM
-    if (address >= 0x8000 && address < 0xFFFF) {
-        uint32_t prg_offset = (cpu->cartridge_bank * (PRG_PAGE_SIZE));
-        return cpu->cartridge->prg_data[prg_offset + (address - 0x8000)];
+    // Cartridge
+    if (address >= 0x6000 && address < 0xFFFF) {
+        return rom_map_read(cpu->cartridge, address);
     }
 
     return 0;
@@ -1115,4 +1116,14 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
     if (address >= 0x6000 && address < 0x7FFF) {
         return;
     }
+}
+
+void cpu_print_regs(CPU_t* cpu) {
+    printf("cpu\n");
+    printf("\t->reg_A  %02x\n", cpu->reg_A);
+    printf("\t->reg_X  %02x\n", cpu->reg_X);
+    printf("\t->reg_Y  %02x\n", cpu->reg_Y);
+    printf("\t->reg_PC %04x\n", cpu->reg_PC);
+    printf("\t->reg_S  %02x\n", cpu->reg_S);
+    printf("\t->reg_P  %02x\n", cpu->reg_P);
 }

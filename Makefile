@@ -8,9 +8,8 @@ ARTIFACT=nes
 
 build: ${ARTIFACT}
 
-${ARTIFACT}: main.c rom.c rom.h
-	  ${CC} ${FLAGS} main.c rom.c -o ${ARTIFACT}
+${ARTIFACT}: main.c rom.c rom.h cpu.h cpu.c apu.h apu.c ppu.h ppu.c console.h util.h util.c
+	  ${CC} ${FLAGS} main.c rom.c cpu.c apu.c ppu.c util.c -o ${ARTIFACT}
 
 clean:
 	  rm ./${ARTIFACT}
-	  rm ./*.gch
