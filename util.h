@@ -6,7 +6,5 @@
 
 uint8_t set_bit(uint8_t byte, uint8_t n, bool value);
 bool get_bit(uint8_t byte, uint8_t n);
-uint16_t set_bit(uint16_t half_word, uint8_t n, bool value);
-bool get_bit(uint16_t half_word, uint8_t n);
 
 #endif

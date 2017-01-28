@@ -63,7 +63,9 @@ void cpu_start(CPU_t* cpu) {
 }
 
 uint8_t cpu_cycle(CPU_t* cpu) {
+    printf("$%04x EXEC", cpu->reg_PC);
     uint8_t opcode = cpu_map_read(cpu, cpu->reg_PC++);
+    printf("%02x\n", opcode);
 
     switch(opcode) {
         // ADC
@@ -269,15 +271,16 @@ uint8_t cpu_cycle(CPU_t* cpu) {
         case 0x98: return 2 + op_tya(cpu, IMPLICIT);
         default:
             fprintf(stderr, "Error: Invalid opcode: %x", opcode);
+            cpu->powered_on = false;
             return 0;
     }
 }
 
 // Instruction Implementations
 uint8_t op_adc(CPU_t* cpu, AddrMode mode) {
-    uint16_t result = cpu->reg_A;
+    uint16_t result;
     uint8_t rhs;
-    bool page_cross = false;
+    bool overflow, page_cross = false;
 
     if (mode == IMMEDIATE) {
         rhs = cpu_map_read(cpu, cpu->reg_PC++);
@@ -286,12 +289,14 @@ uint8_t op_adc(CPU_t* cpu, AddrMode mode) {
         rhs = cpu_map_read(cpu, address);
     }
 
-    result += rhs;
+    result = cpu->reg_A + rhs + get_bit(cpu->reg_P, stat_CARRY);
     cpu->reg_A = result;
+    overflow = !((cpu->reg_A ^ rhs) & 0x80) && ((cpu->reg_A ^ result) & 0x80);
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, result > 255);
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
+    cpu->reg_P = set_bit(cpu->reg_P, stat_OVERFLOW, overflow);
 
     return 0 + page_cross;
 }
@@ -748,6 +753,179 @@ uint8_t op_plp(CPU_t* cpu, AddrMode mode) {
     return 0;
 }
 
+uint8_t op_rol(CPU_t* cpu, AddrMode mode) {
+    bool old_carry = get_bit(cpu->reg_P, stat_CARRY);
+
+    if (mode == ACCUMULATOR) {
+        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, get_bit(cpu->reg_A, 7));
+        cpu->reg_A = (cpu->reg_A << 1) | old_carry;
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+        uint8_t value = (cpu_map_read(cpu, address) << 1) | old_carry;
+        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, get_bit(value, 7));
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
+        cpu_map_write(cpu, address, value);
+    }
+
+    return 0;
+}
+
+uint8_t op_ror(CPU_t* cpu, AddrMode mode) {
+    bool old_bit_0, old_carry = get_bit(cpu->reg_P, stat_CARRY);
+
+    if (mode == ACCUMULATOR) {
+        old_bit_0 = get_bit(cpu->reg_A, 0);
+        cpu->reg_A = set_bit(cpu->reg_A >> 1, 7, old_carry);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+        uint8_t value = cpu_map_read(cpu, address);
+        old_bit_0 = get_bit(value, 0);
+        value = set_bit(value >> 1, 7, old_carry);
+
+        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
+        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
+        cpu_map_write(cpu, address, value);
+    }
+
+    return 0;
+}
+
+uint8_t op_rti(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_P = cpu_stack_pull(cpu);
+    uint16_t new_PC = cpu_stack_pull(cpu);
+    new_PC = (new_PC << 8) | cpu_stack_pull(cpu);
+    cpu->reg_PC = new_PC;
+
+    return 0;
+}
+
+uint8_t op_rts(CPU_t* cpu, AddrMode mode) {
+    uint16_t new_PC = cpu_stack_pull(cpu);
+    new_PC = (new_PC << 8) | cpu_stack_pull(cpu);
+    cpu->reg_PC = new_PC + 1; // TODO: Confirm the addition
+
+    return 0;
+}
+
+uint8_t op_sbc(CPU_t* cpu, AddrMode mode) {
+    bool overflow, page_cross = false;
+    uint8_t value;
+    uint16_t result;
+
+    if (mode == IMMEDIATE) {
+        value = cpu_map_read(cpu, cpu->reg_PC++);
+    } else {
+        uint16_t address = cpu_address_from_mode(cpu, mode, &page_cross);
+        value = cpu_map_read(cpu, address);
+    }
+
+    result = cpu->reg_A - value - !get_bit(cpu->reg_P, stat_CARRY);
+    cpu->reg_A = result;
+    overflow = ((cpu->reg_A ^ result) & 0x80) && ((cpu->reg_A ^ value) & 0x80);
+
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
+    cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, result < 0x100);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_OVERFLOW, overflow);
+
+    return page_cross;
+}
+
+uint8_t op_sec(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, true);
+    return 0;
+}
+
+uint8_t op_sed(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_P = set_bit(cpu->reg_P, stat_DECIMAL, true);
+    return 0;
+}
+
+uint8_t op_sei(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_P = set_bit(cpu->reg_P, stat_INT, true);
+    return 0;
+}
+
+uint8_t op_sta(CPU_t* cpu, AddrMode mode) {
+    uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_map_write(cpu, address, cpu->reg_A);
+
+    return 0;
+}
+
+uint8_t op_stx(CPU_t* cpu, AddrMode mode) {
+    uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_map_write(cpu, address, cpu->reg_X);
+
+    return 0;
+}
+
+uint8_t op_sty(CPU_t* cpu, AddrMode mode) {
+    uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_map_write(cpu, address, cpu->reg_Y);
+
+    return 0;
+}
+
+uint8_t op_tax(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_X = cpu->reg_A;
+
+    cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_X == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_X, 7));
+
+    return 0;
+}
+
+uint8_t op_tay(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_Y = cpu->reg_A;
+
+    cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_Y == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_Y, 7));
+
+    return 0;
+}
+
+uint8_t op_tsx(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_X = cpu->reg_S;
+
+    cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_X == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_X, 7));
+
+    return 0;
+}
+
+uint8_t op_txa(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_A = cpu->reg_X;
+
+    cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_A, 7));
+
+    return 0;
+}
+
+uint8_t op_txs(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_S = cpu->reg_X;
+
+    return 0;
+}
+
+uint8_t op_tya(CPU_t* cpu, AddrMode mode) {
+    cpu->reg_A = cpu->reg_Y;
+
+    cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_A == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_A, 7));
+
+    return 0;
+}
+
+
 void cpu_stack_push(CPU_t* cpu, uint8_t value) {
     cpu_map_write(cpu, STACK_OFFSET | cpu->reg_S, value);
     cpu->reg_S--;
@@ -829,11 +1007,8 @@ uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode, bool* page_cross) {
     return ret;
 }
 
-bool cpu_page_crossed(uint16_t address_before, uint16_t address_after) {
-    return (address_before / (PAGE_SIZE)) != (address_after / (PAGE_SIZE));
-}
-
 uint8_t cpu_map_read(CPU_t* cpu, uint16_t address) {
+    printf("$%04x READ %04x\n", cpu->reg_PC, address);
     // The 2KiB of system memory is mapped from $0000-$07FF, but it's also
     // mirrored to $0800-$1FFF 3 times
     if (address < 0x2000) {
@@ -888,6 +1063,8 @@ uint8_t cpu_map_read(CPU_t* cpu, uint16_t address) {
 }
 
 void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
+    printf("$%04x WRIT %04x %02x\n", cpu->reg_PC, address, value);
+
     if (address < 0x2000) {
         cpu->memory[address % CPU_MEMORY_SIZE] = value;
         return;
