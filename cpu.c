@@ -60,8 +60,8 @@ void cpu_start(CPU_t* cpu) {
         // delay.tv_nsec = (long) cycle_count * (NS_PER_CLOCK) ;
         cpu_print_regs(cpu);
 
-        printf("Waiting...\n");
-        if (getchar() == 'q' || cycle_count == 0) {
+        // printf("Waiting...\n");
+        if (cycle_count == 0) {
             printf("Thread recieved interrupt\n");
             return;
         }
