@@ -30,7 +30,7 @@ bool rom_file_valid(ROM_t* rom, uint32_t buffer_len);
 void rom_load_pages(ROM_t* rom, uint8_t* buffer);
 void rom_free(ROM_t* rom);
 
-uint8_t rom_map_read(ROM_t* rom, uint16_t address);
+uint8_t* rom_map_read(ROM_t* rom, uint16_t address);
 
 uint8_t rom_mapper(ROM_t* rom);
 

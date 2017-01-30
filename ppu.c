@@ -26,6 +26,10 @@ void ppu_free(PPU_t* ppu) {
     free(ppu);
 }
 
+void ppu_tick(PPU_t* ppu) {
+    // Perform PPU cycle
+}
+
 uint8_t ppu_memory_map_read(PPU_t* ppu, uint16_t address) {
     return 0;
 }

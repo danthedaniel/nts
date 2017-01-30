@@ -129,31 +129,31 @@ void rom_print_details(ROM_t* rom) {
     printf("\t->flags9 %02x\n", rom->flags9);
 }
 
-uint8_t rom_map_read(ROM_t* rom, uint16_t address) {
+uint8_t* rom_map_read(ROM_t* rom, uint16_t address) {
     uint8_t mapper = rom_mapper(rom);
 
     switch (mapper) {
         case 0:
             if (address >= 0x6000 && address < 0x8000) {
                 if (rom->ram_page_count > 0)
-                    return rom->ram_data[address - 0x6000];
+                    return &rom->ram_data[address - 0x6000];
                 else
-                    return 0;
+                    return NULL;
             }
 
             if (address >= 0x8000 && address < 0xC000)
-                return rom->prg_data[address - 0x8000];
+                return &rom->prg_data[address - 0x8000];
 
             if (address >= 0xC000) {
                 if (rom->prg_page_count == 1)
-                    return rom->prg_data[address - 0xC000]; // Mirror first page
+                    return &rom->prg_data[address - 0xC000]; // Mirror first page
                 else if (rom->prg_page_count == 2)
-                    return rom->prg_data[address - 0xC000 + (PRG_PAGE_SIZE)];
+                    return &rom->prg_data[address - 0xC000 + (PRG_PAGE_SIZE)];
                 else
-                    return 0;
+                    return NULL;
             }
         default:
-            return 0;
+            return NULL;
             fprintf(stderr, "Error: Unsupported mapper %d\n", mapper);
     }
 }
