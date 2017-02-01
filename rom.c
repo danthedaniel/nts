@@ -34,8 +34,6 @@ ROM_t* rom_from_file(char* path) {
                 rom->chr_page_count = buffer[5];
                 rom->ram_page_count = buffer[8];
 
-                rom->ram_data = NULL;
-
                 rom->flags6 = buffer[6];
                 rom->flags7 = buffer[7];
                 rom->flags9 = buffer[9];
@@ -109,6 +107,12 @@ void rom_load_pages(ROM_t* rom, uint8_t* buffer) {
     uint32_t chr_data_size = rom->prg_page_count * (CHR_PAGE_SIZE);
     rom->chr_data = (uint8_t*) malloc(chr_data_size);
     memcpy(rom->chr_data, buffer, chr_data_size);
+
+    // Also initialize catridge RAM
+    if (rom->ram_page_count > 0)
+        rom->ram_data = (uint8_t*) malloc(rom->ram_page_count * (RAM_PAGE_SIZE));
+    else
+        rom->ram_data = NULL;
 }
 
 uint8_t rom_mapper(ROM_t* rom) {
@@ -153,7 +157,7 @@ uint8_t* rom_map_read(ROM_t* rom, uint16_t address) {
                     return NULL;
             }
         default:
-            return NULL;
             fprintf(stderr, "Error: Unsupported mapper %d\n", mapper);
+            return NULL;
     }
 }
