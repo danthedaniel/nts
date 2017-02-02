@@ -33,7 +33,7 @@ typedef enum {
     IND_INDX
 } AddrMode;
 
-enum StatusBits {
+enum CPUStatusBits {
     stat_NEGATIVE = 7,
     stat_OVERFLOW = 6,
     stat_B5       = 5,

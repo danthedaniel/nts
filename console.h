@@ -10,7 +10,8 @@
 #define FRAME_WIDTH 256
 #define FRAME_HEIGHT 240
 
-#define OAM_SIZE 1<<8
+#define OAM_SIZE 1<<8 // 256B
+#define SECONDARY_OAM_SIZE 1<<5 // 32B
 #define PPU_MEMORY_SIZE 1<<11 // 2KiB
 #define PALLETTE_IND_SIZE 0x20 // 32B
 
@@ -52,18 +53,19 @@ struct CPU_t {
 
 struct PPU_t {
     // REGISTERS
-    uint8_t reg_PPUCTRL;
-    uint8_t reg_PPUMASK;
-    uint8_t reg_PPUSTATUS;
-    uint8_t reg_OAMADDR;
-    uint8_t reg_OAMDATA;
+    uint8_t  reg_PPUCTRL;
+    uint8_t  reg_PPUMASK;
+    uint8_t  reg_PPUSTATUS;
+    uint8_t  reg_OAMADDR;
+    uint8_t  reg_OAMDATA;
     uint16_t reg_PPUSCROLL;
     uint16_t reg_PPUADDR;
-    uint8_t reg_PPUDATA;
-    uint8_t reg_OAMDMA;
+    uint8_t  reg_PPUDATA;
+    uint8_t  reg_OAMDMA;
 
     // MEMORY
     uint8_t oam[OAM_SIZE];
+    uint8_t secondary_oam[SECONDARY_OAM_SIZE];
     uint8_t memory[PPU_MEMORY_SIZE];
     uint8_t pallette_indices[PALLETTE_IND_SIZE];
 
@@ -75,8 +77,12 @@ struct PPU_t {
     uint64_t cycle;
 
     // RENDERING
-    uint8_t scanline;
-    uint8_t framebuffer[FRAME_WIDTH][FRAME_HEIGHT][3];
+    int16_t  scanline;
+    uint16_t scanline_cycle;
+    uint8_t  framebuffer[FRAME_WIDTH][FRAME_HEIGHT][3];
+
+    // OTHER
+    bool mirroring;
 };
 
 struct APU_t {
