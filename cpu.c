@@ -22,6 +22,9 @@ CPU_t* cpu_init(ROM_t* cartridge) {
     cpu->reg_P = 0x34;
     cpu->reg_S = 0xFD;
 
+    cpu->sig_IRQ = true;
+    cpu->sig_NMI = true;
+
     cpu->cycle = 0;
 
     // Connect hardware
@@ -54,6 +57,11 @@ void cpu_start(CPU_t* cpu) {
 #endif
 
         cpu_perform_op(cpu);
+
+        if (!cpu->sig_IRQ && !get_bit(cpu->reg_P, stat_INT))
+            cpu_irq(cpu);
+        if (!cpu->sig_NMI)
+            cpu_nmi(cpu);
 
 #ifdef DEBUG
         cpu_print_regs(cpu);
@@ -373,6 +381,8 @@ void op_bpl(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_brk(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
+
     uint8_t upper_PC = cpu->reg_PC >> 8;
     uint8_t lower_PC = cpu->reg_PC;
     uint8_t status = cpu->reg_P | 0b0011000; // Set bits 4 and 5
@@ -722,6 +732,38 @@ void op_tya(CPU_t* cpu, AddrMode mode) {
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_A == 0);
     cpu->reg_P = set_bit(cpu->reg_P, 7, get_bit(cpu->reg_A, 7));
+}
+
+// Signal handlers
+void cpu_irq(CPU_t* cpu) {
+    cpu_tick(cpu);
+    cpu_tick(cpu);
+
+    uint8_t upper_PC = cpu->reg_PC >> 8;
+    uint8_t lower_PC = cpu->reg_PC;
+    uint8_t status = cpu->reg_P | 0b0010000; // Set bit 5 of the B "flag"
+    cpu_stack_push(cpu, upper_PC);
+    cpu_stack_push(cpu, lower_PC);
+    cpu_stack_push(cpu, status);
+
+    cpu->reg_PC = cpu_get_vector(cpu, BRK_VECTOR);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_INT, true);
+    cpu->sig_IRQ = true;
+}
+
+void cpu_nmi(CPU_t* cpu) {
+    cpu_tick(cpu);
+    cpu_tick(cpu);
+
+    uint8_t upper_PC = cpu->reg_PC >> 8;
+    uint8_t lower_PC = cpu->reg_PC;
+    uint8_t status = cpu->reg_P | 0b0010000; // Set bit 5 of the B "flag"
+    cpu_stack_push(cpu, upper_PC);
+    cpu_stack_push(cpu, lower_PC);
+    cpu_stack_push(cpu, status);
+
+    cpu->reg_PC = cpu_get_vector(cpu, NMI_VECTOR);
+    cpu->sig_NMI = true;
 }
 
 // Stack helpers

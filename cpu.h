@@ -52,6 +52,10 @@ void cpu_start(CPU_t* cpu);
 void cpu_tick(CPU_t* cpu);
 uint16_t cpu_get_vector(CPU_t* cpu, uint16_t vec_start);
 
+// Signal handlers
+void cpu_irq(CPU_t* cpu);
+void cpu_nmi(CPU_t* cpu);
+
 // Memory functions
 uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address);
 void cpu_write_back(CPU_t* cpu, uint8_t* address, uint8_t value);

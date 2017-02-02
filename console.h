@@ -11,8 +11,10 @@
 #define FRAME_HEIGHT 240
 
 #define OAM_SIZE 1<<8
-#define CPU_MEMORY_SIZE 2<<11 // 2KiB
-#define PPU_MEMORY_SIZE 2<<11 // 2KiB
+#define PPU_MEMORY_SIZE 1<<11 // 2KiB
+#define PALLETTE_IND_SIZE 0x20 // 32B
+
+#define CPU_MEMORY_SIZE 1<<11 // 2KiB
 #define PAGE_SIZE 1<<8 // 256B
 
 typedef struct CPU_t CPU_t;
@@ -27,6 +29,10 @@ struct CPU_t {
     uint16_t reg_PC; // Program counter
     uint8_t  reg_S;  // Stack pointer
     uint8_t  reg_P;  // Status register
+
+    // SIGNALS
+    bool sig_IRQ;
+    bool sig_NMI;
 
     // MEMORY
     uint8_t memory[CPU_MEMORY_SIZE];
@@ -59,9 +65,18 @@ struct PPU_t {
     // MEMORY
     uint8_t oam[OAM_SIZE];
     uint8_t memory[PPU_MEMORY_SIZE];
+    uint8_t pallette_indices[PALLETTE_IND_SIZE];
 
     // OTHER HARDWARE
     CPU_t* cpu;
+    ROM_t* rom; // The PPU reads the CHR pages from the ROM
+
+    // CLOCK
+    uint64_t cycle;
+
+    // RENDERING
+    uint8_t scanline;
+    uint8_t framebuffer[FRAME_WIDTH][FRAME_HEIGHT][3];
 };
 
 struct APU_t {
