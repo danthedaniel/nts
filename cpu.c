@@ -353,6 +353,7 @@ void op_bit(CPU_t* cpu, AddrMode mode) {
 
 void op_bmi(CPU_t* cpu, AddrMode mode) {
     if (get_bit(cpu->reg_P, stat_NEGATIVE)) {
+        cpu_tick(cpu);
         cpu->reg_PC = cpu_address_from_mode(cpu, mode, true);
     }
 }
@@ -445,16 +446,16 @@ void op_cmy(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_dec(CPU_t* cpu, AddrMode mode) {
-    bool page_cross = false;
-    uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-    uint8_t value = *cpu_map_read(cpu, address) - 1;
-    cpu_map_write(cpu, address, value);
+    uint8_t* target = cpu_get_op_target(cpu, mode, true);
+    uint8_t value = *target - 1;
+    cpu_write_back(cpu, target, value);
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
 }
 
 void op_dex(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_X--;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_X == 0);
@@ -462,6 +463,7 @@ void op_dex(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_dey(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_Y--;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_Y == 0);
@@ -469,29 +471,24 @@ void op_dey(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_eor(CPU_t* cpu, AddrMode mode) {
-    bool page_cross = false;
-
-    if (mode == IMMEDIATE) {
-        cpu->reg_A = cpu->reg_A ^ *cpu_map_read(cpu, cpu->reg_PC++);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-        cpu->reg_A = cpu->reg_A ^ *cpu_map_read(cpu, address);
-    }
+    uint8_t value = *cpu_get_op_target(cpu, mode, true);
+    cpu->reg_A = cpu->reg_A ^ value;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
 }
 
 void op_inc(CPU_t* cpu, AddrMode mode) {
-    uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
-    uint8_t value = *cpu_map_read(cpu, address) + 1;
-    cpu_map_write(cpu, address, value);
+    uint8_t* target = cpu_get_op_target(cpu, mode, true);
+    uint8_t value = *target + 1;
+    cpu_write_back(cpu, target, value);
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
 }
 
 void op_inx(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_X++;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_X == 0);
@@ -499,6 +496,7 @@ void op_inx(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_iny(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_Y++;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_Y == 0);
@@ -508,7 +506,6 @@ void op_iny(CPU_t* cpu, AddrMode mode) {
 void op_jmp(CPU_t* cpu, AddrMode mode) {
     uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
     cpu->reg_PC = address;
-    cpu_tick(cpu);
 }
 
 void op_jsr(CPU_t* cpu, AddrMode mode) {
@@ -524,42 +521,24 @@ void op_jsr(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_lda(CPU_t* cpu, AddrMode mode) {
-    bool page_cross = false;
-
-    if (mode == IMMEDIATE) {
-        cpu->reg_A = *cpu_map_read(cpu, cpu->reg_PC++);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-        cpu->reg_A = *cpu_map_read(cpu, address);
-    }
+    uint8_t value = *cpu_get_op_target(cpu, mode, true);
+    cpu->reg_A = value;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
 }
 
 void op_ldx(CPU_t* cpu, AddrMode mode) {
-    bool page_cross = false;
-
-    if (mode == IMMEDIATE) {
-        cpu->reg_X = *cpu_map_read(cpu, cpu->reg_PC++);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-        cpu->reg_X = *cpu_map_read(cpu, address);
-    }
+    uint8_t value = *cpu_get_op_target(cpu, mode, true);
+    cpu->reg_X = value;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_X == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_X, 7));
 }
 
 void op_ldy(CPU_t* cpu, AddrMode mode) {
-    bool page_cross = false;
-
-    if (mode == IMMEDIATE) {
-        cpu->reg_Y = *cpu_map_read(cpu, cpu->reg_PC++);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-        cpu->reg_Y = *cpu_map_read(cpu, address);
-    }
+    uint8_t value = *cpu_get_op_target(cpu, mode, true);
+    cpu->reg_Y = value;
 
     cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_Y == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_Y, 7));
@@ -570,22 +549,13 @@ void op_nop(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_lsr(CPU_t* cpu, AddrMode mode) {
-    bool old_bit_0;
+    uint8_t* target = cpu_get_op_target(cpu, mode, false);
+    bool old_bit_0 = get_bit(*target, 0);
+    uint8_t value = *target >> 1;
 
-    if (mode == ACCUMULATOR) {
-        old_bit_0 = get_bit(cpu->reg_A, 0);
-        cpu->reg_A = cpu->reg_A << 1;
+    cpu_write_back(cpu, target, value);
 
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
-        uint8_t value = *cpu_map_read(cpu, address);
-        old_bit_0 = get_bit(value, 0);
-        cpu_map_write(cpu, address, value >> 1);
-
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
-    }
-
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
     cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, false);
     cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
 }
@@ -619,68 +589,52 @@ void op_plp(CPU_t* cpu, AddrMode mode) {
 
 void op_rol(CPU_t* cpu, AddrMode mode) {
     bool old_carry = get_bit(cpu->reg_P, stat_CARRY);
+    uint8_t* target = cpu_get_op_target(cpu, mode, false);
+    uint8_t value = (*target << 1) | old_carry;
 
-    if (mode == ACCUMULATOR) {
-        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, get_bit(cpu->reg_A, 7));
-        cpu->reg_A = (cpu->reg_A << 1) | old_carry;
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
-        uint8_t value = (*cpu_map_read(cpu, address) << 1) | old_carry;
-        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, get_bit(value, 7));
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
-        cpu_map_write(cpu, address, value);
-    }
+    cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, get_bit(*target, 7));
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
+    cpu_write_back(cpu, target, value);
 }
 
 void op_ror(CPU_t* cpu, AddrMode mode) {
-    bool old_bit_0, old_carry = get_bit(cpu->reg_P, stat_CARRY);
+    uint8_t* target = cpu_get_op_target(cpu, mode, false);
+    bool old_bit_0 = get_bit(*target, 0);
+    uint8_t value = set_bit(*target >> 1, 7, get_bit(cpu->reg_P, stat_CARRY));
+    cpu_write_back(cpu, target, value);
 
-    if (mode == ACCUMULATOR) {
-        old_bit_0 = get_bit(cpu->reg_A, 0);
-        cpu->reg_A = set_bit(cpu->reg_A >> 1, 7, old_carry);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, cpu->reg_A == 0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(cpu->reg_A, 7));
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
-        uint8_t value = *cpu_map_read(cpu, address);
-        old_bit_0 = get_bit(value, 0);
-        value = set_bit(value >> 1, 7, old_carry);
-
-        cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
-        cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
-        cpu_map_write(cpu, address, value);
-    }
+    cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, old_bit_0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_ZERO, value == 0);
+    cpu->reg_P = set_bit(cpu->reg_P, stat_NEGATIVE, get_bit(value, 7));
 }
 
 void op_rti(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
+    cpu_tick(cpu);
+
     cpu->reg_P = cpu_stack_pull(cpu);
-    uint16_t new_PC = cpu_stack_pull(cpu);
-    new_PC = (new_PC << 8) | cpu_stack_pull(cpu);
-    cpu->reg_PC = new_PC;
+    uint8_t PC_LOW = cpu_stack_pull(cpu);
+    uint16_t PC_HIGH = cpu_stack_pull(cpu);
+    cpu->reg_PC = (PC_HIGH << 8) | PC_LOW;
 }
 
 void op_rts(CPU_t* cpu, AddrMode mode) {
-    uint16_t new_PC = cpu_stack_pull(cpu);
-    new_PC = (new_PC << 8) | cpu_stack_pull(cpu);
-    cpu->reg_PC = new_PC + 1; // TODO: Confirm the addition
+    cpu_tick(cpu);
+    cpu_tick(cpu);
+
+    uint8_t PC_LOW = cpu_stack_pull(cpu);
+    uint16_t PC_HIGH = cpu_stack_pull(cpu);
+    cpu->reg_PC = (PC_HIGH << 8) | PC_LOW;
+
+    cpu_tick(cpu);
+    cpu->reg_PC++;
 }
 
 void op_sbc(CPU_t* cpu, AddrMode mode) {
-    bool overflow, page_cross = false;
-    uint8_t value;
+    bool overflow;
+    uint8_t value = *cpu_get_op_target(cpu, mode, true);
     uint16_t result;
-
-    if (mode == IMMEDIATE) {
-        value = *cpu_map_read(cpu, cpu->reg_PC++);
-    } else {
-        uint16_t address = cpu_address_from_mode(cpu, mode, page_cross);
-        value = *cpu_map_read(cpu, address);
-    }
 
     result = cpu->reg_A - value - !get_bit(cpu->reg_P, stat_CARRY);
     cpu->reg_A = result;
@@ -693,33 +647,40 @@ void op_sbc(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_sec(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_P = set_bit(cpu->reg_P, stat_CARRY, true);
 }
 
 void op_sed(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_P = set_bit(cpu->reg_P, stat_DECIMAL, true);
 }
 
 void op_sei(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_P = set_bit(cpu->reg_P, stat_INT, true);
 }
 
 void op_sta(CPU_t* cpu, AddrMode mode) {
     uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_tick(cpu);
     cpu_map_write(cpu, address, cpu->reg_A);
 }
 
 void op_stx(CPU_t* cpu, AddrMode mode) {
     uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_tick(cpu);
     cpu_map_write(cpu, address, cpu->reg_X);
 }
 
 void op_sty(CPU_t* cpu, AddrMode mode) {
     uint16_t address = cpu_address_from_mode(cpu, mode, NULL);
+    cpu_tick(cpu);
     cpu_map_write(cpu, address, cpu->reg_Y);
 }
 
 void op_tax(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_X = cpu->reg_A;
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_X == 0);
@@ -727,6 +688,7 @@ void op_tax(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_tay(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_Y = cpu->reg_A;
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_Y == 0);
@@ -734,6 +696,7 @@ void op_tay(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_tsx(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_X = cpu->reg_S;
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_X == 0);
@@ -741,6 +704,7 @@ void op_tsx(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_txa(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_A = cpu->reg_X;
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_A == 0);
@@ -748,10 +712,12 @@ void op_txa(CPU_t* cpu, AddrMode mode) {
 }
 
 void op_txs(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_S = cpu->reg_X;
 }
 
 void op_tya(CPU_t* cpu, AddrMode mode) {
+    cpu_tick(cpu);
     cpu->reg_A = cpu->reg_Y;
 
     cpu->reg_P = set_bit(cpu->reg_P, 7, cpu->reg_A == 0);
@@ -760,11 +726,13 @@ void op_tya(CPU_t* cpu, AddrMode mode) {
 
 // Stack helpers
 void cpu_stack_push(CPU_t* cpu, uint8_t value) {
+    cpu_tick(cpu);
     cpu_map_write(cpu, STACK_OFFSET + cpu->reg_S, value);
     cpu->reg_S--;
 }
 
 uint8_t cpu_stack_pull(CPU_t* cpu) {
+    cpu_tick(cpu);
     uint8_t value = *cpu_map_read(cpu, STACK_OFFSET + cpu->reg_S);
     cpu->reg_S++;
     return value;
