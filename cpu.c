@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <pthread.h>
 // #include <time.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,6 +30,7 @@ CPU_t* cpu_init(ROM_t* cartridge) {
 
     // Connect hardware
     cpu->ppu = ppu_init();
+    cpu->ppu->cycle_budget = 0;
     cpu->apu = apu_init();
     cpu->cartridge = cartridge;
 
@@ -75,9 +77,10 @@ void cpu_start(CPU_t* cpu) {
 
 void cpu_tick(CPU_t* cpu) {
     cpu->cycle++;
-    ppu_tick(cpu->ppu);
-    ppu_tick(cpu->ppu);
-    ppu_tick(cpu->ppu);
+    cpu->ppu->cycle_budget += 3;
+
+    pthread_mutex_unlock(&clock_lock);
+    pthread_mutex_lock(&clock_lock);
 }
 
 void cpu_perform_op(CPU_t* cpu) {

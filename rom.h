@@ -4,11 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define HEADER_SIZE   1<<4  // 16B
-#define TRAINER_SIZE  1<<9  // 512B
-#define PRG_PAGE_SIZE 1<<14 // 16KiB
-#define CHR_PAGE_SIZE 1<<13 // 8KiB
-#define RAM_PAGE_SIZE 1<<13 // 8KiB
+#define HEADER_SIZE   1 << 4  // 16B
+#define TRAINER_SIZE  1 << 9  // 512B
+#define PRG_PAGE_SIZE 1 << 14 // 16KiB
+#define CHR_PAGE_SIZE 1 << 13 // 8KiB
+#define RAM_PAGE_SIZE 1 << 13 // 8KiB
 
 typedef struct {
     uint8_t  prg_page;

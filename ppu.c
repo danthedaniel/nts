@@ -28,64 +28,30 @@ PPU_t* ppu_init() {
     ppu->scanline_cycle = 0;
 
     // false for vertical, true for horizontal
-    ppu->mirroring = get_bit(ppu->rom->flags6, MIRRORING);
+    ppu->mirroring = get_bit(ppu->cartridge->flags6, MIRRORING);
 
     return ppu;
 }
 
-void ppu_free(PPU_t* ppu) {
-    free(ppu);
+void ppu_start(PPU_t* ppu) {
+    while (ppu->cpu->powered_on) {
+
+
+    }
 }
 
 void ppu_tick(PPU_t* ppu) {
-    if (ppu->scanline == -1 || ppu->scanline == 261) {
-        // Pre-render scanline
-        // TODO:
-        // Fill the shift registers with the data for the first two tiles of the
-        // next scanline. The PPU still makes the same memory accesses it would
-        // for a regular scanline.
-    }
-
-    else if (ppu->scanline >= 0 && ppu->scanline < 240) {
-        ppu_render_scanline(ppu);
-    }
-
-    // PPU is idle for scanline 240
-
-    else if (ppu->scanline >= 241 && ppu->scanline < 261) {
-        if (ppu->scanline_cycle == 1) {
-            ppu->cpu->sig_NMI = false;
-            ppu->reg_PPUSTATUS = set_bit(ppu->reg_PPUSTATUS, stat_VBLANK, true);
-        }
-    }
-
-    // Up the current scanline/cycle as appropriate
-    ppu->scanline_cycle++;
-
-    if (ppu->scanline_cycle > CYCLES_PER_SCANLINE) {
-        ppu->scanline++;
-        ppu->scanline_cycle = 0;
-
-        if (ppu->scanline > 261)
-            ppu->scanline = -1;
-    }
-
+    pthread_mutex_unlock(&clock_lock);
     ppu->cycle++;
+
+    if (ppu->cycle_budget > 0)
+        ppu->cycle_budget--;
+
+    pthread_mutex_lock(&clock_lock);
 }
 
-void ppu_render_scanline(PPU_t* ppu) {
-
-}
-
-void ppu_sprite_eval(PPU_t* ppu) {
-    // On cycles 1 - 64 secondary OAM is initialized to $FF
-    if (ppu->scanline_cycle == 1) {
-        memset(ppu->secondary_oam, 0xFF, SECONDARY_OAM_SIZE);
-    }
-
-    else if (ppu->scanline_cycle >= 65 && ppu->scanline_cycle < 257) {
-
-    }
+void ppu_free(PPU_t* ppu) {
+    free(ppu);
 }
 
 void ppu_write_oam_data(PPU_t* ppu) {
@@ -100,7 +66,7 @@ uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address) {
     // The current 8KiB page of CHR ROM is mapped onto the $0000 - $2000 range
     // of the PPU memory map.
     if (address < 0x2000) {
-        return &ppu->rom->chr_data[address];
+        return &ppu->cartridge->chr_data[address];
     }
 
     // The PPU nametables are mapped onto $2000 - $3000.

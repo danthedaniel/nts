@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include "rom.h"
 
 #define MASTER_CLOCK 236250000 / 11.0 // NTSC Clock Rate
@@ -18,6 +19,8 @@
 
 #define CPU_MEMORY_SIZE 1 << 11   // 2KiB
 #define PAGE_SIZE 1 << 8          // 256B
+
+pthread_mutex_t clock_lock;
 
 typedef struct CPU_t CPU_t;
 typedef struct PPU_t PPU_t;
@@ -41,7 +44,6 @@ struct CPU_t {
 
     // OTHER HARDWARE
     ROM_t* cartridge;
-
     PPU_t* ppu;
     APU_t* apu;
 
@@ -72,10 +74,11 @@ struct PPU_t {
 
     // OTHER HARDWARE
     CPU_t* cpu;
-    ROM_t* rom; // The PPU reads the CHR pages from the ROM
+    ROM_t* cartridge; // The PPU reads the CHR pages from the ROM
 
     // CLOCK
     uint64_t cycle;
+    uint8_t cycle_budget;
 
     // RENDERING
     int16_t  scanline;

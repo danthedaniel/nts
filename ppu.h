@@ -7,11 +7,12 @@
 #define PPU_CLOCK (MASTER_CLOCK) / 4.0
 #define NUM_SCANELINES 262
 #define CYCLES_PER_SCANLINE 340
-#define NAMETABLE_SIZE 1<<10 // 1KiB
+#define NAMETABLE_SIZE 1 << 10 // 1KiB
 
 PPU_t* ppu_init();
 void ppu_free(PPU_t* ppu);
 
+void ppu_start(PPU_t* ppu);
 void ppu_tick(PPU_t* ppu);
 void ppu_render_scanline(PPU_t* ppu);
 void ppu_sprite_eval(PPU_t* ppu);
