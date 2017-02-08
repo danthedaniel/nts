@@ -10,13 +10,14 @@
 #define FRAME_WIDTH 256
 #define FRAME_HEIGHT 240
 
-#define OAM_SIZE 1<<8 // 256B
-#define SECONDARY_OAM_SIZE 1<<5 // 32B
-#define PPU_MEMORY_SIZE 1<<11 // 2KiB
-#define PALLETTE_IND_SIZE 0x20 // 32B
+#define SPRITE_SIZE 1 << 2        // 4B
+#define OAM_SIZE 1 << 8           // 256B
+#define SECONDARY_OAM_SIZE 1 << 5 // 32B
+#define PPU_MEMORY_SIZE 1 << 11   // 2KiB
+#define PALLETTE_IND_SIZE 0x20    // 32B
 
-#define CPU_MEMORY_SIZE 1<<11 // 2KiB
-#define PAGE_SIZE 1<<8 // 256B
+#define CPU_MEMORY_SIZE 1 << 11   // 2KiB
+#define PAGE_SIZE 1 << 8          // 256B
 
 typedef struct CPU_t CPU_t;
 typedef struct PPU_t PPU_t;

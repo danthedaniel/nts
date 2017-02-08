@@ -866,9 +866,9 @@ uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address) {
             case 2:
                 return &cpu->ppu->reg_PPUSTATUS;
             case 4:
-                return &cpu->ppu->reg_OAMDATA;
+                return &cpu->ppu->oam[cpu->ppu->reg_OAMDATA];
             case 7:
-                return &cpu->ppu->reg_PPUDATA;
+                return ppu_memory_map_read(cpu->ppu, cpu->ppu->reg_PPUADDR);
             default:
                 return 0;
         }
@@ -898,6 +898,7 @@ uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address) {
 }
 
 void cpu_write_back(CPU_t* cpu, uint8_t* address, uint8_t value) {
+    // TODO: Make considerations for 0x2004 and 0x2007
     cpu_tick(cpu);
     *address = value;
 }
@@ -927,6 +928,7 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
                 return;
             case 4:
                 cpu->ppu->reg_OAMDATA = value;
+                ppu_write_oam_data(cpu->ppu);
                 return;
             case 5:
                 cpu->ppu->reg_PPUSCROLL = value;
@@ -936,6 +938,7 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
                 return;
             case 7:
                 cpu->ppu->reg_PPUDATA = value;
+                ppu_write_from_reg(cpu->ppu);
                 return;
             default:
                 return;
@@ -947,6 +950,8 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
         switch(address) {
             case 0x4014:
                 cpu->ppu->reg_OAMDMA = value;
+                cpu_oam_transfer(cpu);
+                return;
         }
     }
 
@@ -959,6 +964,18 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
     if (address >= 0x6000 && address < 0x7FFF) {
         return;
     }
+}
+
+void cpu_oam_transfer(CPU_t* cpu) {
+    uint16_t read_address = 0x100 * cpu->ppu->reg_OAMDMA;
+
+    // Idle ticks before transfer
+    cpu_tick(cpu);
+    if (cpu->cycle % 2 == 1)
+        cpu_tick(cpu);
+
+    for (uint8_t i = 0; i < 256; ++i)
+        cpu_map_write(cpu, 0x2004, *cpu_map_read(cpu, read_address));
 }
 
 void cpu_print_regs(CPU_t* cpu) {

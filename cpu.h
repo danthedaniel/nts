@@ -62,6 +62,7 @@ void cpu_write_back(CPU_t* cpu, uint8_t* address, uint8_t value);
 void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value);
 uint16_t cpu_address_from_mode(CPU_t* cpu, AddrMode mode, bool page_cross_cost);
 uint8_t* cpu_get_op_target(CPU_t* cpu, AddrMode mode, bool page_cross_cost);
+void cpu_oam_transfer(CPU_t* cpu);
 
 // Stack functions
 void cpu_stack_push(CPU_t* cpu, uint8_t value);

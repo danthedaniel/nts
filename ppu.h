@@ -13,11 +13,16 @@ PPU_t* ppu_init();
 void ppu_free(PPU_t* ppu);
 
 void ppu_tick(PPU_t* ppu);
+void ppu_render_scanline(PPU_t* ppu);
 void ppu_sprite_eval(PPU_t* ppu);
 
 uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address);
 uint8_t* ppu_nametable_read(PPU_t* ppu, uint16_t address);
 void ppu_memory_map_write(PPU_t* ppu, uint16_t address, uint8_t value);
+
+void ppu_write_oam_data(PPU_t* ppu);
+void ppu_write_from_reg(PPU_t* ppu);
+uint16_t sprite_pattern_address(uint8_t* sprite);
 
 enum PPUStatusBits {
     stat_VBLANK     = 7,

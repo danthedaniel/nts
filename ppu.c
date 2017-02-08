@@ -38,8 +38,6 @@ void ppu_free(PPU_t* ppu) {
 }
 
 void ppu_tick(PPU_t* ppu) {
-    ppu->cycle++;
-
     if (ppu->scanline == -1 || ppu->scanline == 261) {
         // Pre-render scanline
         // TODO:
@@ -48,13 +46,13 @@ void ppu_tick(PPU_t* ppu) {
         // for a regular scanline.
     }
 
-    if (ppu->scanline >= 0 && ppu->scanline < 240) {
-        // Render scanlines
+    else if (ppu->scanline >= 0 && ppu->scanline < 240) {
+        ppu_render_scanline(ppu);
     }
 
     // PPU is idle for scanline 240
 
-    if (ppu->scanline >= 241 && ppu->scanline < 261) {
+    else if (ppu->scanline >= 241 && ppu->scanline < 261) {
         if (ppu->scanline_cycle == 1) {
             ppu->cpu->sig_NMI = false;
             ppu->reg_PPUSTATUS = set_bit(ppu->reg_PPUSTATUS, stat_VBLANK, true);
@@ -71,10 +69,31 @@ void ppu_tick(PPU_t* ppu) {
         if (ppu->scanline > 261)
             ppu->scanline = -1;
     }
+
+    ppu->cycle++;
+}
+
+void ppu_render_scanline(PPU_t* ppu) {
+
 }
 
 void ppu_sprite_eval(PPU_t* ppu) {
+    // On cycles 1 - 64 secondary OAM is initialized to $FF
+    if (ppu->scanline_cycle == 1) {
+        memset(ppu->secondary_oam, 0xFF, SECONDARY_OAM_SIZE);
+    }
 
+    else if (ppu->scanline_cycle >= 65 && ppu->scanline_cycle < 257) {
+
+    }
+}
+
+void ppu_write_oam_data(PPU_t* ppu) {
+    ppu->oam[ppu->reg_OAMADDR] = ppu->reg_OAMDATA;
+}
+
+void ppu_write_from_reg(PPU_t* ppu) {
+    ppu_memory_map_write(ppu, ppu->reg_PPUADDR, ppu->reg_PPUDATA);
 }
 
 uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address) {
