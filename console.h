@@ -49,6 +49,7 @@ struct CPU_t {
 
     // CLOCK
     uint64_t cycle; // How many cycles have passed
+    uint8_t cycle_budget;
 
     // OTHER
     bool powered_on;

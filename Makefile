@@ -1,5 +1,5 @@
 CC=gcc
-FLAGS=--std=c99 -O2 -ggdb
+FLAGS=--std=c99 -O2 -ggdb -pthread
 ARTIFACT=nes
 
 .DEFAULT_GOAL := build

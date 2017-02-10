@@ -1,11 +1,13 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include "console.h"
-#include "util.h"
 #include "ppu.h"
+#include "util.h"
+#include "rom.h"
 
-PPU_t* ppu_init() {
+PPU_t* ppu_init(ROM_t* cartridge) {
     PPU_t* ppu = (PPU_t*) malloc(sizeof(PPU_t));
 
     // Zero out memory
@@ -25,36 +27,128 @@ PPU_t* ppu_init() {
 
     ppu->cycle = 0;
     ppu->scanline = -1;
-    ppu->scanline_cycle = 0;
-
+    ppu->cartridge = cartridge;
     // false for vertical, true for horizontal
     ppu->mirroring = get_bit(ppu->cartridge->flags6, MIRRORING);
 
     return ppu;
 }
 
-void ppu_start(PPU_t* ppu) {
-    while (ppu->cpu->powered_on) {
-
-
-    }
-}
-
-void ppu_tick(PPU_t* ppu) {
-    pthread_mutex_unlock(&clock_lock);
-    ppu->cycle++;
-
-    if (ppu->cycle_budget > 0)
-        ppu->cycle_budget--;
-
-    pthread_mutex_lock(&clock_lock);
-}
-
 void ppu_free(PPU_t* ppu) {
     free(ppu);
 }
 
-void ppu_write_oam_data(PPU_t* ppu) {
+void ppu_start(PPU_t* ppu) {
+    pthread_mutex_lock(&clock_lock);
+
+    while (ppu->cpu->powered_on) {
+        ppu_render_scanline(ppu);
+    }
+
+    pthread_mutex_unlock(&clock_lock);
+}
+
+void ppu_tick(PPU_t* ppu) {
+    ppu->cycle++;
+    ppu->scanline_cycle++;
+
+    // Because the PPU runs at 3x the clockspeed of the CPU, we give the CPU a
+    // clock cycle every 3 PPU cycles.
+    if (ppu->cycle % 3 == 0)
+        ppu->cpu->cycle_budget++;
+
+    while (ppu->cycle_budget == 0) {
+        pthread_mutex_unlock(&clock_lock);
+        pthread_mutex_lock(&clock_lock);
+    }
+
+    ppu->cycle_budget--;
+}
+
+void ppu_render_scanline(PPU_t* ppu) {
+    ppu->scanline_cycle = 0;
+
+    if (ppu->scanline == -1 || ppu->scanline == 261)
+        ppu_prerender_scanline(ppu);
+    else if (ppu->scanline >= 0 && ppu->scanline < 240)
+        ppu_visible_scanline(ppu);
+    else if (ppu->scanline == 240)
+        ppu_idle_scanline(ppu);
+    else if (ppu->scanline == 241)
+        ppu_vblank_scanline(ppu);
+    else if (ppu->scanline >= 242 && ppu->scanline < 261)
+        ppu_idle_scanline(ppu);
+
+    ppu->scanline++;
+    if (ppu->scanline > 261)
+        ppu->scanline = 0;
+}
+
+void ppu_prerender_scanline(PPU_t* ppu) {
+    ppu->reg_PPUSTATUS = set_bit(ppu->reg_PPUSTATUS, stat_VBLANK, false);
+}
+
+void ppu_visible_scanline(PPU_t* ppu) {
+    ppu_tick(ppu); // Cycle 0 is idle
+
+    // Read tile data
+    for (int i = 0; i < TILES_PER_SCANLINE; ++i) {
+        // TODO:
+        // Read nametable byte
+        // Read Attribute table byte
+        // Read tile bitmap low
+        // Read tile bitmap high (at low addr + 8)
+    }
+
+    // Preload sprites for the next scanline
+    for (int i = 0; i < ((SECONDARY_OAM_SIZE) / (SPRITE_SIZE)); ++i) {
+        // Garbage nametable read
+        ppu_fake_memory_access(ppu);
+        // Garbage nametable read
+        ppu_fake_memory_access(ppu);
+
+        // TODO:
+        // Read tile bitmap low
+        // Read tile bitmap high (at low addr + 8)
+
+        // If there are less than 8 sprites on the next scanline, then dummy
+        // fetches to tile $FF occur for the left-over sprites, because of the
+        // dummy sprite data in the secondary OAM (see sprite evaluation). This
+        // data is then discarded, and the sprites are loaded with a transparent
+        // bitmap instead.
+    }
+
+    // Get first 2 tiles for the *next* scanline
+    for (int i = 0; i < 2; ++i) {
+        // TODO:
+        // Read nametable byte
+        // Read Attribute table byte
+        // Read tile bitmap low
+        // Read tile bitmap high (at low addr + 8)
+    }
+
+    // Two bytes are fetched, but the purpose for this is unknown
+    ppu_fake_memory_access(ppu);
+    ppu_fake_memory_access(ppu);
+}
+
+void ppu_idle_scanline(PPU_t* ppu) {
+    for (int i = 0; i < CYCLES_PER_SCANLINE; ++i)
+        ppu_tick(ppu);
+}
+
+void ppu_vblank_scanline(PPU_t* ppu) {
+    ppu_tick(ppu); // Cycle 0
+    ppu_tick(ppu); // Cycle 1
+    ppu->reg_PPUSTATUS = set_bit(ppu->reg_PPUSTATUS, stat_VBLANK, true);
+    ppu->cpu->sig_NMI = false;
+
+    // Set i = 2 because we've already performed two cycles for this scanline
+    for (int i = 2; i < CYCLES_PER_SCANLINE; ++i)
+        ppu_tick(ppu);
+}
+
+void ppu_write_oam_from_reg(PPU_t* ppu) {
     ppu->oam[ppu->reg_OAMADDR] = ppu->reg_OAMDATA;
 }
 
@@ -62,7 +156,15 @@ void ppu_write_from_reg(PPU_t* ppu) {
     ppu_memory_map_write(ppu, ppu->reg_PPUADDR, ppu->reg_PPUDATA);
 }
 
+void ppu_fake_memory_access(PPU_t* ppu) {
+    ppu_tick(ppu);
+    ppu_tick(ppu);
+}
+
 uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address) {
+    ppu_tick(ppu);
+    ppu_tick(ppu);
+
     // The current 8KiB page of CHR ROM is mapped onto the $0000 - $2000 range
     // of the PPU memory map.
     if (address < 0x2000) {
@@ -89,6 +191,9 @@ uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address) {
 }
 
 void ppu_memory_map_write(PPU_t* ppu, uint16_t address, uint8_t value) {
+    ppu_tick(ppu);
+    ppu_tick(ppu);
+
     if (address >= 0x2000 && address < 0x3000) {
         *ppu_nametable_read(ppu, address - 0x2000) = value;
     }

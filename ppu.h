@@ -2,26 +2,39 @@
 #define PPU_H__
 
 #include <stdint.h>
+#include "rom.h"
 #include "console.h"
 
 #define PPU_CLOCK (MASTER_CLOCK) / 4.0
 #define NUM_SCANELINES 262
-#define CYCLES_PER_SCANLINE 340
+#define CYCLES_PER_SCANLINE 341
+#define TILE_SIZE 1 << 3 // 8 pixels
+#define TILES_PER_SCANLINE (FRAME_WIDTH) / (TILE_SIZE)
 #define NAMETABLE_SIZE 1 << 10 // 1KiB
 
-PPU_t* ppu_init();
+PPU_t* ppu_init(ROM_t* cartridge);
 void ppu_free(PPU_t* ppu);
 
 void ppu_start(PPU_t* ppu);
 void ppu_tick(PPU_t* ppu);
+
+// Rendering functions
 void ppu_render_scanline(PPU_t* ppu);
+void ppu_prerender_scanline(PPU_t* ppu);
+void ppu_visible_scanline(PPU_t* ppu);
+void ppu_idle_scanline(PPU_t* ppu);
+void ppu_vblank_scanline(PPU_t* ppu);
 void ppu_sprite_eval(PPU_t* ppu);
 
+// Memory functions
 uint8_t* ppu_memory_map_read(PPU_t* ppu, uint16_t address);
 uint8_t* ppu_nametable_read(PPU_t* ppu, uint16_t address);
 void ppu_memory_map_write(PPU_t* ppu, uint16_t address, uint8_t value);
+void ppu_fake_memory_access(PPU_t* ppu);
 
-void ppu_write_oam_data(PPU_t* ppu);
+// OAM functions
+uint8_t* ppu_read_oam(PPU_t* ppu, uint8_t address);
+void ppu_write_oam_from_reg(PPU_t* ppu);
 void ppu_write_from_reg(PPU_t* ppu);
 uint16_t sprite_pattern_address(uint8_t* sprite);
 

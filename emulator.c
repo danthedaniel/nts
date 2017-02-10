@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include "emulator.h"
 #include "console.h"
 #include "cpu.h"
@@ -11,10 +12,21 @@ void system_bootstrap(ROM_t* cartridge) {
         return;
     }
 
-    int err = pthread_create(&(tids[CPU_THREAD]), NULL, &cpu_thread, (void*) cartridge);
+    CPU_t* cpu = cpu_init(cartridge);
 
-    if (err != 0)
+    int cpuErr = pthread_create(&(tids[CPU_THREAD]), NULL, &cpu_thread, (void*) cpu);
+    int ppuErr = pthread_create(&(tids[PPU_THREAD]), NULL, &cpu_thread, (void*) cpu->ppu);
+
+    if (cpuErr != 0) {
         fprintf(stderr, "Unable to start CPU thread\n");
+        pthread_cancel(tids[PPU_THREAD]);
+    }
+
+    if (ppuErr != 0) {
+        fprintf(stderr, "Unable to start PPU thread\n");
+        cpu->powered_on = false;
+        pthread_cancel(tids[CPU_THREAD]);
+    }
 
     pthread_join(tids[CPU_THREAD], NULL);
     pthread_join(tids[PPU_THREAD], NULL);
@@ -22,19 +34,7 @@ void system_bootstrap(ROM_t* cartridge) {
 }
 
 void* cpu_thread(void* arg) {
-    ROM_t* cartridge = (ROM_t*) arg;
-    CPU_t* cpu = cpu_init(cartridge);
-
-    // Give the lock to the CPU thread
-    pthread_mutex_lock(&clock_lock);
-    // Start the PPU thread
-    int err = pthread_create(&(tids[PPU_THREAD]), NULL, &ppu_thread, (void*) cpu->ppu);
-
-    if (err != 0) {
-        fprintf(stderr, "Unable to start PPU thread\n");
-        pthread_mutex_unlock(&clock_lock);
-        return NULL;
-    }
+    CPU_t* cpu = (CPU_t*) arg;
 
     cpu_start(cpu);
     cpu_free(cpu);

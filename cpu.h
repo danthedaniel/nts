@@ -47,7 +47,7 @@ enum CPUStatusBits {
 CPU_t* cpu_init(ROM_t* cartridge);
 void cpu_free(CPU_t* cpu);
 
-void cpu_perform_op(CPU_t* cpu);
+void cpu_perform_next_op(CPU_t* cpu);
 void cpu_start(CPU_t* cpu);
 void cpu_tick(CPU_t* cpu);
 uint16_t cpu_get_vector(CPU_t* cpu, uint16_t vec_start);

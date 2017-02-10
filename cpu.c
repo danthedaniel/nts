@@ -27,12 +27,17 @@ CPU_t* cpu_init(ROM_t* cartridge) {
     cpu->sig_NMI = true;
 
     cpu->cycle = 0;
+    // On system startup, the PPU will be the source of the CPU's first
+    // budgeted cycle.
+    cpu->cycle_budget = 0;
 
     // Connect hardware
-    cpu->ppu = ppu_init();
+    cpu->ppu = ppu_init(cartridge);
     cpu->ppu->cycle_budget = 0;
     cpu->apu = apu_init();
     cpu->cartridge = cartridge;
+
+    cpu->powered_on = true;
 
     return cpu;
 }
@@ -50,7 +55,7 @@ uint16_t cpu_get_vector(CPU_t* cpu, uint16_t vec_start) {
 }
 
 void cpu_start(CPU_t* cpu) {
-    cpu->powered_on = true;
+    pthread_mutex_lock(&clock_lock);
     cpu->reg_PC = cpu_get_vector(cpu, RST_VECTOR);
 
     while (cpu->powered_on) {
@@ -58,7 +63,7 @@ void cpu_start(CPU_t* cpu) {
         printf("Cycle %08x:\n", (uint32_t) cpu->cycle);
 #endif
 
-        cpu_perform_op(cpu);
+        cpu_perform_next_op(cpu);
 
         if (!cpu->sig_IRQ && !get_bit(cpu->reg_P, stat_INT))
             cpu_irq(cpu);
@@ -72,18 +77,26 @@ void cpu_start(CPU_t* cpu) {
 #endif
     }
 
+    pthread_mutex_unlock(&clock_lock);
     printf("CPU shutting down\n");
 }
 
 void cpu_tick(CPU_t* cpu) {
     cpu->cycle++;
+
+    // Give the PPU 3 cycles per CPU cycle executed because it runs at 3x the
+    // clock speed of the CPU.
     cpu->ppu->cycle_budget += 3;
 
-    pthread_mutex_unlock(&clock_lock);
-    pthread_mutex_lock(&clock_lock);
+    while (cpu->cycle_budget == 0) {
+        pthread_mutex_unlock(&clock_lock);
+        pthread_mutex_lock(&clock_lock);
+    }
+
+    cpu->cycle_budget--;
 }
 
-void cpu_perform_op(CPU_t* cpu) {
+void cpu_perform_next_op(CPU_t* cpu) {
     uint16_t orig_pc = cpu->reg_PC;
     uint8_t opcode = *cpu_map_read(cpu, cpu->reg_PC++);
 
@@ -744,7 +757,7 @@ void cpu_irq(CPU_t* cpu) {
 
     uint8_t upper_PC = cpu->reg_PC >> 8;
     uint8_t lower_PC = cpu->reg_PC;
-    uint8_t status = cpu->reg_P | 0b0010000; // Set bit 5 of the B "flag"
+    uint8_t status = set_bit(cpu->reg_P, stat_B5, true); // Set bit 5, the B "flag"
     cpu_stack_push(cpu, upper_PC);
     cpu_stack_push(cpu, lower_PC);
     cpu_stack_push(cpu, status);
@@ -760,7 +773,7 @@ void cpu_nmi(CPU_t* cpu) {
 
     uint8_t upper_PC = cpu->reg_PC >> 8;
     uint8_t lower_PC = cpu->reg_PC;
-    uint8_t status = cpu->reg_P | 0b0010000; // Set bit 5 of the B "flag"
+    uint8_t status = set_bit(cpu->reg_P, stat_B5, true); // Set bit 5, the B "flag"
     cpu_stack_push(cpu, upper_PC);
     cpu_stack_push(cpu, lower_PC);
     cpu_stack_push(cpu, status);
@@ -931,7 +944,7 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
                 return;
             case 4:
                 cpu->ppu->reg_OAMDATA = value;
-                ppu_write_oam_data(cpu->ppu);
+                ppu_write_oam_from_reg(cpu->ppu);
                 return;
             case 5:
                 cpu->ppu->reg_PPUSCROLL = value;
