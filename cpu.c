@@ -5,9 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "cpu.h"
-#include "ppu.h"
 #include "apu.h"
-#include "rom.h"
 #include "util.h"
 
 CPU_t* cpu_init(ROM_t* cartridge) {
@@ -85,7 +83,7 @@ void cpu_tick(CPU_t* cpu) {
     cpu->cycle++;
 
     // Give the PPU 3 cycles per CPU cycle executed because it runs at 3x the
-    // clock speed of the CPU.
+    // clock speed of the CPU
     cpu->ppu->cycle_budget += 3;
 
     while (cpu->cycle_budget == 0) {
@@ -880,29 +878,31 @@ uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address) {
     if (address >= 0x2000 && address < 0x4000) {
         switch(address % 8) {
             case 2:
+                cpu->ppu->address_latch = false;
+                cpu->ppu->clear_vsync = true;
                 return &cpu->ppu->reg_PPUSTATUS;
             case 4:
-                return &cpu->ppu->oam[cpu->ppu->reg_OAMDATA];
+                return ppu_read_oam_from_reg(cpu->ppu, cpu->ppu->reg_OAMADDR);
             case 7:
-                return ppu_memory_map_read(cpu->ppu, cpu->ppu->reg_PPUADDR);
+                return ppu_memory_map_read_inc(cpu->ppu, cpu->ppu->reg_PPUADDR);
             default:
-                return 0;
+                return &ZERO;
         }
     }
 
     // NES APU and I/O registers
     if (address >= 0x4000 && address < 0x4017) {
-        return 0;
+        return &ZERO;
     }
 
     // APU and I/O functionality that is usually disabled
     if (address >= 0x4018 && address < 0x401F) {
-        return 0;
+        return &ZERO;
     }
 
     // Expansion RAM
     if (address >= 0x4020 && address < 0x5FFF) {
-        return 0;
+        return &ZERO;
     }
 
     // Cartridge
@@ -910,13 +910,14 @@ uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address) {
         return rom_map_read(cpu->cartridge, address);
     }
 
-    return 0;
+    return &ZERO;
 }
 
 void cpu_write_back(CPU_t* cpu, uint8_t* address, uint8_t value) {
     // TODO: Make considerations for 0x2004 and 0x2007
     cpu_tick(cpu);
-    *address = value;
+    if (address != &ZERO)
+        *address = value;
 }
 
 void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
@@ -940,23 +941,31 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
                 cpu->ppu->reg_PPUMASK = value;
                 return;
             case 3:
-                cpu->ppu->reg_OAMADDR = value;
+                if (cpu->ppu->address_latch)
+                    cpu->ppu->reg_OAMADDR |= ((uint16_t) value) << 8;
+                else
+                    cpu->ppu->reg_OAMADDR |= value;
+
+                cpu->ppu->address_latch = true;
                 return;
             case 4:
                 cpu->ppu->reg_OAMDATA = value;
                 ppu_write_oam_from_reg(cpu->ppu);
                 return;
             case 5:
-                cpu->ppu->reg_PPUSCROLL = value;
+                if (cpu->ppu->address_latch)
+                    cpu->ppu->reg_PPUSCROLL |= ((uint16_t) value) << 8;
+                else
+                    cpu->ppu->reg_PPUSCROLL |= value;
+
+                cpu->ppu->address_latch = true;
                 return;
             case 6:
                 cpu->ppu->reg_PPUADDR = value;
                 return;
             case 7:
                 cpu->ppu->reg_PPUDATA = value;
-                ppu_write_from_reg(cpu->ppu);
-                return;
-            default:
+                ppu_memory_map_write_inc(cpu->ppu, cpu->ppu->reg_PPUADDR, cpu->ppu->reg_PPUDATA);
                 return;
         }
     }
@@ -983,7 +992,7 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
 }
 
 void cpu_oam_transfer(CPU_t* cpu) {
-    uint16_t read_address = 0x100 * cpu->ppu->reg_OAMDMA;
+    uint16_t base_address = 0x100 * cpu->ppu->reg_OAMDMA;
 
     // Idle ticks before transfer
     cpu_tick(cpu);
@@ -991,7 +1000,7 @@ void cpu_oam_transfer(CPU_t* cpu) {
         cpu_tick(cpu);
 
     for (uint8_t i = 0; i < 256; ++i)
-        cpu_map_write(cpu, 0x2004, *cpu_map_read(cpu, read_address));
+        cpu_map_write(cpu, 0x2004, *cpu_map_read(cpu, base_address + i));
 }
 
 void cpu_print_regs(CPU_t* cpu) {

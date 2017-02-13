@@ -9,14 +9,13 @@
 
 #define DEBUG
 
-#define CPU_CLOCK (MASTER_CLOCK) / 12.0
+#define CPU_CLOCK    (MASTER_CLOCK) / 12.0
 #define STACK_OFFSET 0x0100
 
-#define BRK_VECTOR 0xFFFE
-#define RST_VECTOR 0xFFFC
-#define NMI_VECTOR 0xFFFA
+#define BRK_VECTOR   0xFFFE
+#define RST_VECTOR   0xFFFC
+#define NMI_VECTOR   0xFFFA
 
-// Addressing modes
 typedef enum {
     IMPLICIT,
     ACCUMULATOR,

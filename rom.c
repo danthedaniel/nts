@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "rom.h"
+#include "console.h"
 #include "util.h"
 
 ROM_t* rom_from_file(char* path) {
@@ -142,7 +143,7 @@ uint8_t* rom_map_read(ROM_t* rom, uint16_t address) {
                 if (rom->ram_page_count > 0)
                     return &rom->ram_data[address - 0x6000];
                 else
-                    return NULL;
+                    return &ZERO;
             }
 
             if (address >= 0x8000 && address < 0xC000)
@@ -154,10 +155,10 @@ uint8_t* rom_map_read(ROM_t* rom, uint16_t address) {
                 else if (rom->prg_page_count == 2)
                     return &rom->prg_data[address - 0xC000 + (PRG_PAGE_SIZE)];
                 else
-                    return NULL;
+                    return &ZERO;
             }
         default:
             fprintf(stderr, "Error: Unsupported mapper %d\n", mapper);
-            return NULL;
+            return &ZERO;
     }
 }

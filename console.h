@@ -6,21 +6,22 @@
 #include <pthread.h>
 #include "rom.h"
 
-#define MASTER_CLOCK 236250000 / 11.0 // NTSC Clock Rate
-#define NS_PER_CLOCK (1 / (MASTER_CLOCK)) * 1000000000
-#define FRAME_WIDTH 256
-#define FRAME_HEIGHT 240
+#define MASTER_CLOCK        236250000 / 11.0 // NTSC Clock Rate
+#define NS_PER_CLOCK        (1 / (MASTER_CLOCK)) * 1E9
+#define FRAME_WIDTH         256
+#define FRAME_HEIGHT        240
 
-#define SPRITE_SIZE 1 << 2        // 4B
-#define OAM_SIZE 1 << 8           // 256B
-#define SECONDARY_OAM_SIZE 1 << 5 // 32B
-#define PPU_MEMORY_SIZE 1 << 11   // 2KiB
-#define PALLETTE_IND_SIZE 0x20    // 32B
+#define SPRITE_SIZE         1 << 2  // 4B
+#define OAM_SIZE            1 << 8  // 256B
+#define SECONDARY_OAM_SIZE  1 << 5  // 32B
+#define PPU_MEMORY_SIZE     1 << 11 // 2KiB
+#define PALLETTE_IND_SIZE   1 << 5  // 32B
 
-#define CPU_MEMORY_SIZE 1 << 11   // 2KiB
-#define PAGE_SIZE 1 << 8          // 256B
+#define CPU_MEMORY_SIZE     1 << 11 // 2KiB
+#define PAGE_SIZE           1 << 8  // 256B
 
 pthread_mutex_t clock_lock;
+uint8_t ZERO = 0;
 
 typedef struct CPU_t CPU_t;
 typedef struct PPU_t PPU_t;
@@ -49,7 +50,7 @@ struct CPU_t {
 
     // CLOCK
     uint64_t cycle; // How many cycles have passed
-    uint8_t cycle_budget;
+    uint8_t  cycle_budget;
 
     // OTHER
     bool powered_on;
@@ -67,6 +68,18 @@ struct PPU_t {
     uint8_t  reg_PPUDATA;
     uint8_t  reg_OAMDMA;
 
+    // RENDERING REGISTERS
+    uint16_t sreg_BG[2];
+    uint8_t  sreg_BGPALLETTE[2];
+    uint8_t  sreg_SPRITE[8][2];
+    uint8_t  sreg_SPRITEATTR[8];
+    uint8_t  ltch_SPRITE[8];
+    uint8_t  cntr_SPRITE[8];
+
+    // FLAGS
+    bool address_latch;
+    bool clear_vsync;
+
     // MEMORY
     uint8_t oam[OAM_SIZE];
     uint8_t secondary_oam[SECONDARY_OAM_SIZE];
@@ -79,11 +92,12 @@ struct PPU_t {
 
     // CLOCK
     uint64_t cycle;
-    uint8_t cycle_budget;
+    uint8_t  cycle_budget;
 
     // RENDERING
     int16_t  scanline;
     uint16_t scanline_cycle;
+    uint64_t framenumber;
     uint8_t  framebuffer[FRAME_WIDTH][FRAME_HEIGHT][3];
 
     // OTHER

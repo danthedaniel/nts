@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "util.h"
 
+// TODO: set_bit and git_bit should be macros
 uint8_t set_bit(uint8_t byte, uint8_t n, bool value) {
     uint8_t mask = 1 << n;
     if (value) {
