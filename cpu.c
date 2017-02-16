@@ -914,7 +914,7 @@ uint8_t* cpu_map_read(CPU_t* cpu, uint16_t address) {
 }
 
 void cpu_write_back(CPU_t* cpu, uint8_t* address, uint8_t value) {
-    // TODO: Make considerations for 0x2004 and 0x2007
+    // TODO: Make considerations for 0x2004 and 0x2007 ?
     cpu_tick(cpu);
     if (address != &ZERO)
         *address = value;
