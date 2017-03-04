@@ -15,7 +15,7 @@ void system_bootstrap(ROM_t* cartridge) {
     CPU_t* cpu = cpu_init(cartridge);
 
     int cpuErr = pthread_create(&(tids[CPU_THREAD]), NULL, &cpu_thread, (void*) cpu);
-    int ppuErr = pthread_create(&(tids[PPU_THREAD]), NULL, &cpu_thread, (void*) cpu->ppu);
+    int ppuErr = pthread_create(&(tids[PPU_THREAD]), NULL, &ppu_thread, (void*) cpu->ppu);
 
     if (cpuErr != 0) {
         fprintf(stderr, "Unable to start CPU thread\n");

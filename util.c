@@ -16,7 +16,7 @@ inline bool get_bit(uint8_t byte, uint8_t n) {
 }
 
 void print_data(uint8_t* start, uint16_t num_bytes) {
-    for (uint16_t i; i < num_bytes; ++i) {
+    for (uint16_t i = 0; i < num_bytes; ++i) {
         if (i % 16 == 0)
             printf("\n");
         printf("%02x ", start[i]);

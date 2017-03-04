@@ -226,6 +226,12 @@ void cpu_perform_next_op(CPU_t* cpu) {
         case 0xB4: op_ldy(cpu, ZERO_PAGE_X); break;
         case 0xAC: op_ldy(cpu, ABSOLUTE);    break;
         case 0xBC: op_ldy(cpu, ABSOLUTE_X);  break;
+        // LSR
+        case 0x4A: op_lsr(cpu, ACCUMULATOR); break;
+        case 0x46: op_lsr(cpu, ZERO_PAGE);   break;
+        case 0x56: op_lsr(cpu, ZERO_PAGE_X); break;
+        case 0x4E: op_lsr(cpu, ABSOLUTE);    break;
+        case 0x5E: op_lsr(cpu, ABSOLUTE_X);  break;
         // NOP
         case 0xEA: op_nop(cpu, IMPLICIT);    break;
         // ORA
@@ -260,7 +266,7 @@ void cpu_perform_next_op(CPU_t* cpu) {
         // RTI
         case 0x40: op_rti(cpu, IMPLICIT);    break;
         // RTS
-        case 0x60: op_rti(cpu, IMPLICIT);    break;
+        case 0x60: op_rts(cpu, IMPLICIT);    break;
         // SBC
         case 0xE9: op_sbc(cpu, IMMEDIATE);   break;
         case 0xE5: op_sbc(cpu, ZERO_PAGE);   break;

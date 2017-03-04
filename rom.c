@@ -8,13 +8,12 @@
 ROM_t* rom_from_file(char* path) {
     ROM_t* rom = NULL;
     uint8_t *buffer;
-    uint32_t file_size;
 
     FILE* rom_file = fopen(path, "rb");
 
     if (rom_file != NULL) {
         fseek(rom_file, 0, SEEK_END);
-        file_size = ftell(rom_file);
+        uint32_t file_size = ftell(rom_file);
 
         // Make sure the file is big enough for a header
         if (file_size >= (HEADER_SIZE)) {
