@@ -939,39 +939,41 @@ void cpu_map_write(CPU_t* cpu, uint16_t address, uint8_t value) {
     }
 
     if (address >= 0x2000 && address < 0x4000) {
+        PPU_t* ppu = cpu->ppu;
+
         switch(address % 8) {
             case 0:
-                cpu->ppu->reg_PPUCTRL = value;
+                ppu->reg_PPUCTRL = value;
                 return;
             case 1:
-                cpu->ppu->reg_PPUMASK = value;
+                ppu->reg_PPUMASK = value;
                 return;
             case 3:
-                if (cpu->ppu->address_latch)
-                    cpu->ppu->reg_OAMADDR |= ((uint16_t) value) << 8;
+                if (ppu->address_latch)
+                    ppu->reg_OAMADDR |= ((uint16_t) value) << 8;
                 else
-                    cpu->ppu->reg_OAMADDR |= value;
+                    ppu->reg_OAMADDR |= value;
 
-                cpu->ppu->address_latch = true;
+                ppu->address_latch = true;
                 return;
             case 4:
-                cpu->ppu->reg_OAMDATA = value;
-                ppu_write_oam_from_reg(cpu->ppu);
+                ppu->reg_OAMDATA = value;
+                ppu_write_oam_from_reg(ppu);
                 return;
             case 5:
-                if (cpu->ppu->address_latch)
-                    cpu->ppu->reg_PPUSCROLL |= ((uint16_t) value) << 8;
+                if (ppu->address_latch)
+                    ppu->reg_PPUSCROLL |= ((uint16_t) value) << 8;
                 else
-                    cpu->ppu->reg_PPUSCROLL |= value;
+                    ppu->reg_PPUSCROLL |= value;
 
-                cpu->ppu->address_latch = true;
+                ppu->address_latch = true;
                 return;
             case 6:
-                cpu->ppu->reg_PPUADDR = value;
+                ppu->reg_PPUADDR = value;
                 return;
             case 7:
-                cpu->ppu->reg_PPUDATA = value;
-                ppu_memory_map_write_inc(cpu->ppu, cpu->ppu->reg_PPUADDR, cpu->ppu->reg_PPUDATA);
+                ppu->reg_PPUDATA = value;
+                ppu_memory_map_write_inc(ppu, ppu->reg_PPUADDR, ppu->reg_PPUDATA);
                 return;
         }
     }

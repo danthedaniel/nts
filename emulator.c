@@ -19,13 +19,17 @@ void system_bootstrap(ROM_t* cartridge) {
 
     if (cpuErr != 0) {
         fprintf(stderr, "Unable to start CPU thread\n");
-        pthread_cancel(tids[PPU_THREAD]);
+
+        if (ppuErr == 0)
+            pthread_cancel(tids[PPU_THREAD]);
     }
 
     if (ppuErr != 0) {
         fprintf(stderr, "Unable to start PPU thread\n");
         cpu->powered_on = false;
-        pthread_cancel(tids[CPU_THREAD]);
+
+        if (cpuErr == 0)
+            pthread_cancel(tids[CPU_THREAD]);
     }
 
     pthread_join(tids[CPU_THREAD], NULL);

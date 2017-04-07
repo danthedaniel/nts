@@ -7,57 +7,59 @@
 
 ROM_t* rom_from_file(char* path) {
     ROM_t* rom = NULL;
-    uint8_t *buffer;
-
+    uint8_t *buffer = NULL;
+    uint32_t file_size = 0;
     FILE* rom_file = fopen(path, "rb");
 
-    if (rom_file != NULL) {
-        fseek(rom_file, 0, SEEK_END);
-        uint32_t file_size = ftell(rom_file);
-
-        // Make sure the file is big enough for a header
-        if (file_size >= (HEADER_SIZE)) {
-            rewind(rom_file);
-            buffer = (uint8_t*) malloc(file_size * sizeof(char));
-            fread(buffer, file_size, 1, rom_file);
-
-            // Check for magic bytes
-            if ((buffer[0] == 'N') &&
-                (buffer[1] == 'E') &&
-                (buffer[2] == 'S') &&
-                (buffer[3] == 0x1A)) {
-                // malloc space for ROM struct
-                rom = (ROM_t*) malloc(sizeof(ROM_t));
-
-                rom->prg_page = 0;
-                rom->prg_page_count = buffer[4];
-                rom->chr_page_count = buffer[5];
-                rom->ram_page_count = buffer[8];
-
-                rom->flags6 = buffer[6];
-                rom->flags7 = buffer[7];
-                rom->flags9 = buffer[9];
-
-                if (rom_file_valid(rom, file_size)) {
-                    rom_load_pages(rom, buffer);
-                } else {
-                    fprintf(stderr, "Error: File is too small\n");
-
-                    free(rom);
-                    rom = NULL;
-                }
-            } else {
-                fprintf(stderr, "Error: No magic bytes\n");
-            }
-
-            free(buffer);
-        } else {
-            fprintf(stderr, "Error: File too small, %d bytes\n", file_size);
-        }
-    } else {
+    if (rom_file == NULL) {
         fprintf(stderr, "Error: Could not open file %s\n", path);
+        goto cleanup_fhandler;
     }
 
+    fseek(rom_file, 0, SEEK_END);
+    file_size = ftell(rom_file);
+
+    // Make sure the file is big enough for a header
+    if (file_size < (HEADER_SIZE)) {
+        fprintf(stderr, "Error: File too small, only %d bytes\n", file_size);
+        goto cleanup_fhandler;
+    }
+
+    rewind(rom_file);
+    buffer = (uint8_t*) malloc(file_size * sizeof(char));
+    fread(buffer, file_size, 1, rom_file);
+
+    // Check for magic bytes
+    if (!(buffer[0] == 'N') ||
+        !(buffer[1] == 'E') ||
+        !(buffer[2] == 'S') ||
+        !(buffer[3] == 0x1A)) {
+        fprintf(stderr, "Error: No magic bytes\n");
+        goto cleanup_filebuffer;
+    }
+
+    rom = (ROM_t*) malloc(sizeof(ROM_t));
+
+    rom->prg_page = 0;
+    rom->prg_page_count = buffer[4];
+    rom->chr_page_count = buffer[5];
+    rom->ram_page_count = buffer[8];
+
+    rom->flags6 = buffer[6];
+    rom->flags7 = buffer[7];
+    rom->flags9 = buffer[9];
+
+    if (!rom_file_valid(rom, file_size)) {
+        fprintf(stderr, "Error: File is not valid\n");
+        free(rom);
+        return NULL;
+    }
+
+    rom_load_pages(rom, buffer);
+
+cleanup_filebuffer:
+    free(buffer);
+cleanup_fhandler:
     fclose(rom_file);
 
     return rom;

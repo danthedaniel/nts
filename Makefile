@@ -1,6 +1,6 @@
 CC=gcc
 FLAGS=--std=c99 -O2 -ggdb -pthread
-ARTIFACT=nes
+ARTIFACT=nts
 
 .DEFAULT_GOAL := build
 
@@ -8,8 +8,8 @@ ARTIFACT=nes
 
 build: ${ARTIFACT}
 
-${ARTIFACT}: main.c rom.c rom.h cpu.h cpu.c apu.h apu.c ppu.h ppu.c console.h util.h util.c
-	  ${CC} ${FLAGS} main.c rom.c cpu.c apu.c ppu.c util.c -o ${ARTIFACT}
+${ARTIFACT}:
+	  ${CC} ${FLAGS} ./*.c -o ${ARTIFACT}
 
 clean:
 	  rm ./${ARTIFACT}
